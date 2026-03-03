@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "staticSiteName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name der Azure Static Web App (muss global eindeutig sein)."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "westeurope",
+      "metadata": {
+        "description": "Azure Region für die Static Web App."
+      }
+    },
+    "sku": {
+      "type": "string",
+      "defaultValue": "Free",
+      "allowedValues": ["Free", "Standard"],
+      "metadata": {
+        "description": "Pricing tier. Für 'kostenlos' => Free."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/staticSites",
+      "apiVersion": "2023-12-01",
+      "name": "[parameters('staticSiteName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "sku": {
+        "name": "[parameters('sku')]",
+        "tier": "[parameters('sku')]"
+      },
+      "properties": {
+        "allowConfigFileUpdates": true
+      }
+    }
+  ],
+  "outputs": {
+    "staticSiteName": {
+      "type": "string",
+      "value": "[parameters('staticSiteName')]"
+    },
+    "defaultHostname": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/staticSites', parameters('staticSiteName')), '2023-12-01').defaultHostname]"
+    },
+    "staticSitePrincipalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/staticSites', parameters('staticSiteName')), '2023-12-01', 'Full').identity.principalId]"
+    }
+  }
+}

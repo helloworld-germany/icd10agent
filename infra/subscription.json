@@ -1,0 +1,257 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "resourceGroupName": {
+      "type": "string",
+      "defaultValue": "icd10agent",
+      "metadata": {
+        "description": "Resource Group Name."
+      }
+    },
+    "resourceGroupLocation": {
+      "type": "string",
+      "defaultValue": "westeurope",
+      "metadata": {
+        "description": "Location for the resource group."
+      }
+    },
+    "staticSiteName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name der Azure Static Web App (muss global eindeutig sein)."
+      }
+    },
+    "staticSiteLocation": {
+      "type": "string",
+      "defaultValue": "westeurope",
+      "metadata": {
+        "description": "Location for the static site resource."
+      }
+    },
+    "sku": {
+      "type": "string",
+      "defaultValue": "Free",
+      "allowedValues": ["Free", "Standard"]
+    },
+    "enableOpenAI": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Wenn true, wird zusätzlich eine Azure OpenAI Resource + Model-Deployment erstellt (kostenpflichtig)."
+      }
+    },
+    "openAIAccountName": {
+      "type": "string",
+      "defaultValue": "icd10agent-openai-CHANGEME",
+      "metadata": {
+        "description": "Name der Azure OpenAI Resource (global innerhalb des Subscriptions-Kontexts eindeutig; 2-64 chars)."
+      }
+    },
+    "openAILocation": {
+      "type": "string",
+      "defaultValue": "swedencentral",
+      "metadata": {
+        "description": "Region für Azure OpenAI (gewünscht: swedencentral)."
+      }
+    },
+    "openAISkuName": {
+      "type": "string",
+      "defaultValue": "S0",
+      "metadata": {
+        "description": "SKU name für Cognitive Services OpenAI (typisch S0)."
+      }
+    },
+    "openAIDeploymentName": {
+      "type": "string",
+      "defaultValue": "gpt-52",
+      "metadata": {
+        "description": "Deployment-Name im Azure OpenAI Resource (wird in der App als deployment verwendet)."
+      }
+    },
+    "openAIModelName": {
+      "type": "string",
+      "defaultValue": "gpt-5.2",
+      "metadata": {
+        "description": "Model name (muss in deiner Azure OpenAI Region/Subscription verfügbar sein)."
+      }
+    },
+    "openAIModelVersion": {
+      "type": "string",
+      "defaultValue": "2025-12-11",
+      "metadata": {
+        "description": "Model version (z.B. 2025-12-11)."
+      }
+    },
+    "openAICapacity": {
+      "type": "int",
+      "defaultValue": 1,
+      "minValue": 1,
+      "metadata": {
+        "description": "Deployment capacity (abhängig von Quota/Model)."
+      }
+    },
+    "openAIRoleDefinitionId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Vollständige Role Definition ID für RBAC (z.B. Cognitive Services OpenAI User). Wenn leer, wird kein Role Assignment erstellt."
+      }
+    }
+  },
+  "variables": {
+    "rgDeploymentName": "deploy-static-site"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2022-09-01",
+      "name": "[parameters('resourceGroupName')]",
+      "location": "[parameters('resourceGroupLocation')]"
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[variables('rgDeploymentName')]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "staticSiteName": { "type": "string" },
+            "location": { "type": "string" },
+            "sku": { "type": "string", "allowedValues": ["Free", "Standard"] }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Web/staticSites",
+              "apiVersion": "2023-12-01",
+              "name": "[parameters('staticSiteName')]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "sku": {
+                "name": "[parameters('sku')]",
+                "tier": "[parameters('sku')]"
+              },
+              "properties": {
+                "allowConfigFileUpdates": true
+              }
+            }
+          ],
+          "outputs": {
+            "defaultHostname": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Web/staticSites', parameters('staticSiteName')), '2023-12-01').defaultHostname]"
+            },
+            "staticSitePrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Web/staticSites', parameters('staticSiteName')), '2023-12-01', 'Full').identity.principalId]"
+            }
+          }
+        },
+        "parameters": {
+          "staticSiteName": { "value": "[parameters('staticSiteName')]" },
+          "location": { "value": "[parameters('staticSiteLocation')]" },
+          "sku": { "value": "[parameters('sku')]" }
+        }
+      }
+    },
+    {
+      "condition": "[parameters('enableOpenAI')]",
+      "type": "Microsoft.CognitiveServices/accounts",
+      "apiVersion": "2023-05-01",
+      "name": "[parameters('openAIAccountName')]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "location": "[parameters('openAILocation')]",
+      "kind": "OpenAI",
+      "sku": {
+        "name": "[parameters('openAISkuName')]"
+      },
+      "properties": {
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "condition": "[parameters('enableOpenAI')]",
+      "type": "Microsoft.CognitiveServices/accounts/deployments",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', parameters('openAIAccountName'), parameters('openAIDeploymentName'))]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "dependsOn": [
+        "[resourceId(parameters('resourceGroupName'), 'Microsoft.CognitiveServices/accounts', parameters('openAIAccountName'))]"
+      ],
+      "sku": {
+        "name": "[parameters('openAISkuName')]"
+      },
+      "properties": {
+        "model": {
+          "format": "OpenAI",
+          "name": "[parameters('openAIModelName')]",
+          "version": "[parameters('openAIModelVersion')]"
+        },
+        "scaleSettings": {
+          "scaleType": "Standard",
+          "capacity": "[parameters('openAICapacity')]"
+        }
+      }
+    },
+    {
+      "condition": "[parameters('enableOpenAI')]",
+      "type": "Microsoft.Web/staticSites/config",
+      "apiVersion": "2023-12-01",
+      "name": "[format('{0}/{1}', parameters('staticSiteName'), 'functionappsettings')]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', variables('rgDeploymentName'))]",
+        "[resourceId(parameters('resourceGroupName'), 'Microsoft.CognitiveServices/accounts', parameters('openAIAccountName'))]"
+      ],
+      "properties": {
+        "AZURE_OPENAI_ENDPOINT": "[reference(resourceId(parameters('resourceGroupName'), 'Microsoft.CognitiveServices/accounts', parameters('openAIAccountName')), '2023-05-01').properties.endpoint]",
+        "AZURE_OPENAI_DEPLOYMENT": "[parameters('openAIDeploymentName')]",
+        "AZURE_OPENAI_AUTH_MODE": "rbac"
+      }
+    },
+    {
+      "condition": "[and(parameters('enableOpenAI'), not(empty(parameters('openAIRoleDefinitionId'))))]",
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(subscription().id, parameters('resourceGroupName'), parameters('staticSiteName'), parameters('openAIAccountName'), 'openai-rbac')]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', variables('rgDeploymentName'))]",
+        "[resourceId(parameters('resourceGroupName'), 'Microsoft.CognitiveServices/accounts', parameters('openAIAccountName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[parameters('openAIRoleDefinitionId')]",
+        "principalId": "[reference(resourceId(parameters('resourceGroupName'), 'Microsoft.Web/staticSites', parameters('staticSiteName')), '2023-12-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    }
+  ],
+  "outputs": {
+    "resourceGroupName": {
+      "type": "string",
+      "value": "[parameters('resourceGroupName')]"
+    },
+    "staticSiteName": {
+      "type": "string",
+      "value": "[parameters('staticSiteName')]"
+    },
+    "staticSitePrincipalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', variables('rgDeploymentName')), '2022-09-01').outputs.staticSitePrincipalId.value]"
+    },
+    "openAIEndpoint": {
+      "condition": "[parameters('enableOpenAI')]",
+      "type": "string",
+      "value": "[reference(resourceId(parameters('resourceGroupName'), 'Microsoft.CognitiveServices/accounts', parameters('openAIAccountName')), '2023-05-01').properties.endpoint]"
+    }
+  }
+}

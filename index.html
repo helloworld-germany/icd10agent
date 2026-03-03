@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ICD-10-GM Code-Suche (minimal)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; max-width: 900px; }
+    label { display:block; margin: 12px 0 6px; font-weight: 600; }
+    textarea, input[type="text"] { width: 100%; box-sizing: border-box; padding: 10px; }
+    textarea { min-height: 110px; resize: vertical; }
+    .row { display:flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .row > * { flex: 1 1 auto; }
+    button { padding: 10px 14px; cursor: pointer; }
+    .muted { color: #555; font-size: 0.95rem; }
+    .status { margin-top: 8px; font-size: 0.95rem; }
+    .error { color: #b00020; }
+    .results { margin-top: 16px; }
+    .result { padding: 10px 0; border-top: 1px solid #ddd; }
+    .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 700; }
+    .small { font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>ICD-10-GM Code-Suche (minimal)</h1>
+
+  <p class="muted">
+    Diese Seite sucht ICD-10-GM-Codes über eine ICD10-Quelle (BfArM Terminologieserver).
+    Keine Codes werden von GPT erzeugt.
+  </p>
+
+  <label for="freeText">Freitext</label>
+  <textarea id="freeText" placeholder="z.B. 'Cholera', 'bösartige Neubildung der Brust', ..."></textarea>
+
+  <p class="muted small">
+    Quelle: BfArM ZTS (ValueSet „terminale Codes“). Die Abfrage läuft über die SWA Function <span class="code">/api/search</span> (Proxy gegen den BfArM-Endpoint).
+  </p>
+
+  <div class="row">
+    <button id="searchBtn" type="button">Suchen</button>
+    <input id="limit" type="text" inputmode="numeric" value="20" aria-label="Max. Treffer" title="Max. Treffer" />
+  </div>
+
+  <div id="status" class="status muted">Bereit.</div>
+
+  <div class="results" id="results"></div>
+
+  <script>
+    const el = {
+      freeText: document.getElementById('freeText'),
+      searchBtn: document.getElementById('searchBtn'),
+      results: document.getElementById('results'),
+      status: document.getElementById('status'),
+      limit: document.getElementById('limit'),
+    };
+
+    function setStatus(message, { isError = false } = {}) {
+      el.status.textContent = message;
+      el.status.classList.toggle('error', isError);
+      el.status.classList.toggle('muted', !isError);
+    }
+
+    function parseLimit() {
+      const n = Number.parseInt((el.limit.value || '').trim(), 10);
+      if (!Number.isFinite(n) || n <= 0) return 20;
+      return Math.min(n, 100);
+    }
+
+
+    async function searchApi(query, limit) {
+      const url = new URL('/api/search', window.location.origin);
+        url.searchParams.set('text', query);
+      url.searchParams.set('limit', String(limit));
+      const res = await fetch(url, { method: 'GET' });
+      if (!res.ok) throw new Error(`API HTTP ${res.status}`);
+      return res.json();
+    }
+
+    function renderResults(items, { query } = {}) {
+      el.results.innerHTML = '';
+
+      if (!query.trim()) {
+        el.results.innerHTML = '<p class="muted">Gib Freitext ein und klicke “Suchen”.</p>';
+        return;
+      }
+
+      if (items.length === 0) {
+        el.results.innerHTML = '<p class="muted">Keine Treffer.</p>';
+        return;
+      }
+
+      const frag = document.createDocumentFragment();
+      for (const it of items) {
+        const div = document.createElement('div');
+        div.className = 'result';
+        div.innerHTML = `
+          <div><span class="code">${escapeHtml(it.code)}</span> <span>${escapeHtml(it.display)}</span></div>
+          <div class="muted small">Quelle: BfArM ZTS (ValueSet terminale Codes)</div>
+        `;
+        frag.appendChild(div);
+      }
+      el.results.appendChild(frag);
+    }
+
+    function escapeHtml(s) {
+      return (s || '').toString()
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    async function search() {
+      const query = el.freeText.value || '';
+      const limit = parseLimit();
+
+      if (!query.trim()) {
+        setStatus('Bitte Freitext eingeben.', { isError: true });
+        renderResults([], { query });
+        return;
+      }
+
+      setStatus('Suche…');
+      try {
+        const payload = await searchApi(query, limit);
+        const items = Array.isArray(payload?.results) ? payload.results : [];
+        setStatus(`Treffer: ${items.length}.`);
+        renderResults(items, { query });
+      } catch (e) {
+        setStatus(`API-Fehler: ${e?.message || e}`, { isError: true });
+        renderResults([], { query });
+      }
+    }
+
+    el.searchBtn.addEventListener('click', () => void search());
+
+    // Small convenience: Ctrl+Enter triggers search.
+    el.freeText.addEventListener('keydown', (ev) => {
+      if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') void search();
+    });
+
+    renderResults([], { query: '' });
+  </script>
+</body>
+</html>

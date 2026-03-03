@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "resourceGroupName": {
+      "value": "icd10agent"
+    },
+    "resourceGroupLocation": {
+      "value": "westeurope"
+    },
+    "staticSiteName": {
+      "value": "icd10agent-swa-CHANGEME"
+    },
+    "staticSiteLocation": {
+      "value": "westeurope"
+    },
+    "sku": {
+      "value": "Free"
+    },
+    "enableOpenAI": {
+      "value": false
+    },
+    "openAIAccountName": {
+      "value": "icd10agent-openai-CHANGEME"
+    },
+    "openAILocation": {
+      "value": "swedencentral"
+    },
+    "openAISkuName": {
+      "value": "S0"
+    },
+    "openAIDeploymentName": {
+      "value": "gpt-52"
+    },
+    "openAIModelName": {
+      "value": "gpt-5.2"
+    },
+    "openAIModelVersion": {
+      "value": "2025-12-11"
+    },
+    "openAICapacity": {
+      "value": 1
+    },
+    "openAIRoleDefinitionId": {
+      "value": ""
+    }
+  }
+}
