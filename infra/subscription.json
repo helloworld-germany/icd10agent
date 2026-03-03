@@ -71,16 +71,16 @@
     },
     "openAIModelName": {
       "type": "string",
-      "defaultValue": "gpt-5.2",
+      "defaultValue": "gpt-5.2-chat",
       "metadata": {
-        "description": "Model name (muss in deiner Azure OpenAI Region/Subscription verfügbar sein)."
+        "description": "Model name (must be available in your Azure OpenAI account; for Chat Completions in this repo: e.g. gpt-5.2-chat)."
       }
     },
     "openAIModelVersion": {
       "type": "string",
-      "defaultValue": "2025-12-11",
+      "defaultValue": "2026-02-10",
       "metadata": {
-        "description": "Model version (z.B. 2025-12-11)."
+        "description": "Model version (example: 2026-02-10; discover via 'az cognitiveservices account list-models')."
       }
     },
     "openAICapacity": {
@@ -89,6 +89,13 @@
       "minValue": 1,
       "metadata": {
         "description": "Deployment capacity (abhängig von Quota/Model)."
+      }
+    },
+    "openAIDeploymentSkuName": {
+      "type": "string",
+      "defaultValue": "GlobalStandard",
+      "metadata": {
+        "description": "SKU name for the Azure OpenAI model deployment (model/version dependent; for gpt-5.2-chat commonly 'GlobalStandard' per list-models)."
       }
     },
     "openAIRoleDefinitionId": {
@@ -188,17 +195,14 @@
         "[resourceId(parameters('resourceGroupName'), 'Microsoft.CognitiveServices/accounts', parameters('openAIAccountName'))]"
       ],
       "sku": {
-        "name": "[parameters('openAISkuName')]"
+        "name": "[parameters('openAIDeploymentSkuName')]",
+        "capacity": "[parameters('openAICapacity')]"
       },
       "properties": {
         "model": {
           "format": "OpenAI",
           "name": "[parameters('openAIModelName')]",
           "version": "[parameters('openAIModelVersion')]"
-        },
-        "scaleSettings": {
-          "scaleType": "Standard",
-          "capacity": "[parameters('openAICapacity')]"
         }
       }
     },
