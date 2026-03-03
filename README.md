@@ -18,38 +18,6 @@ The Function fetches this JSON server-side and caches it in-memory (24h) so the 
 
 Goal: after `git push`, the deployment runs automatically.
 
-### Simplest “no Azure prep” path (recommended): GitHub Actions creates everything
-
-You can make this repo self-provisioning:
-
-- On every push to `main`, GitHub Actions will:
-   - create/update the Azure resource group and the Static Web App via ARM
-   - fetch a fresh SWA deployment token from Azure (management plane)
-   - deploy the app + API
-
-This avoids manual token copy/paste.
-
-#### One-time bootstrap (required)
-
-There is one hard technical minimum: a workflow must be able to authenticate to Azure.
-This repo uses GitHub OIDC (no long-lived secrets). You run a one-time bootstrap locally to create the Entra ID app + federated credential and set GitHub repo variables.
-
-Prereqs (local, one-time):
-
-- `az login`
-- `gh auth login`
-
-Run:
-
-`powershell -ExecutionPolicy Bypass -File scripts/bootstrap-oidc.ps1 -Repo helloworld-germany/icd10agent -StaticSiteName icd10agent`
-
-Then push to `main` and the workflow in `.github/workflows/deploy.yml` will provision + deploy.
-
-Notes:
-
-- The SWA name must be globally unique. If `icd10agent` is taken, change the GitHub repo variable `STATIC_SITE_NAME`.
-- The bootstrap assigns `Contributor` at subscription scope (because the RG does not exist yet). If you want tighter scope, create the RG first and scope RBAC to that RG.
-
 ### Lowest interaction (CLI-only): create + link SWA in one command
 
 If you want to avoid the Azure Portal/VS Code UI entirely, you can create the Static Web App *and* link it to your GitHub repo from the CLI. Azure will then create the GitHub Actions workflow under `.github/workflows/` and the required secret automatically.
