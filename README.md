@@ -152,7 +152,7 @@ The Function optionally supports GPT-5.2 (Azure OpenAI / AI Foundry) **only** to
 By default, GPT is **NOT active** until you configure Azure OpenAI settings (so deployments stay “free by default” unless you explicitly enable it).
 
 - ICD codes in the response still come **only** from the BfArM dataset (never from the model).
-- If Azure OpenAI is not configured, `text` is used directly as the search query (no LLM call).
+- If Azure OpenAI is not configured (or temporarily failing), `text` is used directly as the search query (no LLM call). In that case `usedLLM` is `false` and the API may include `llmError` for debugging.
 
 ### Enable GPT in the deployed SWA (CLI-only, RBAC)
 
@@ -220,13 +220,29 @@ RBAC propagation can take a minute. If the next step fails with a permissions er
 
 `az staticwebapp appsettings set -n $swa -g $rg --setting-names AZURE_OPENAI_ENDPOINT=$openAiEndpoint AZURE_OPENAI_DEPLOYMENT=$openAiDeployment AZURE_OPENAI_AUTH_MODE=rbac`
 
+Sanity check (keys should exist; values may be redacted):
+
+`az staticwebapp appsettings list -n $swa -g $rg --query "{AZURE_OPENAI_ENDPOINT:properties.AZURE_OPENAI_ENDPOINT,AZURE_OPENAI_DEPLOYMENT:properties.AZURE_OPENAI_DEPLOYMENT,AZURE_OPENAI_AUTH_MODE:properties.AZURE_OPENAI_AUTH_MODE}" -o jsonc`
+
 7) Verify (you should see `usedLLM : true`):
 
 `$hostName = az staticwebapp show -n $swa -g $rg --query defaultHostname -o tsv`
 
-`curl -sS "https://$hostName/api/search?text=diabetes%20mellitus%20typ%202&limit=5" | ConvertFrom-Json | Format-List input,query,usedLLM,count`
+`$hostName`
+
+PowerShell note: on Windows, `curl` is often an alias for `Invoke-WebRequest`. Use `Invoke-RestMethod` (recommended) or `curl.exe` explicitly.
+
+`Invoke-RestMethod "https://$hostName/api/search?text=diabetes%20mellitus%20typ%202&limit=5" | Format-List input,query,usedLLM,count`
+
+Alternative:
+
+`curl.exe -sS "https://$hostName/api/search?text=diabetes%20mellitus%20typ%202&limit=5" | ConvertFrom-Json | Format-List input,query,usedLLM,count`
 
 If `usedLLM` stays `false`, double-check that you called with `text=...` (not `q=...`) and that the three app settings were applied.
+
+If the request fails with HTTP 500, show the Function’s error payload:
+
+`try { Invoke-RestMethod "https://$hostName/api/search?text=diabetes%20mellitus%20typ%202&limit=5" } catch { $_.ErrorDetails.Message }`
 
 ### SWA App Settings (RBAC / Entra ID)
 

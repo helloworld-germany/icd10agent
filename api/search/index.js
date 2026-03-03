@@ -240,10 +240,20 @@ module.exports = async function (context, req) {
     // If user provided explicit q, use it as-is; otherwise LLM-prepare from text.
     let preparedQuery = q;
     let usedLLM = false;
+    let llmError = '';
     if (!preparedQuery) {
-      const prep = await llmPrepareQuery(text);
-      preparedQuery = prep.preparedQuery;
-      usedLLM = prep.usedLLM;
+      try {
+        const prep = await llmPrepareQuery(text);
+        preparedQuery = prep.preparedQuery;
+        usedLLM = prep.usedLLM;
+      } catch (e) {
+        // Keep the product usable even if Azure OpenAI is temporarily unavailable
+        // or RBAC/appsettings aren't fully in place yet.
+        preparedQuery = stripLikelyIcdCodes(text);
+        usedLLM = false;
+        llmError = (e?.message || String(e) || '').toString();
+        if (llmError.length > 300) llmError = llmError.slice(0, 300);
+      }
     }
 
     const qNorm = normalizeText(preparedQuery);
@@ -263,7 +273,14 @@ module.exports = async function (context, req) {
         // keep responses uncacheable; upstream is cached in-memory anyway
         'cache-control': 'no-store',
       },
-      body: { input, query: preparedQuery, usedLLM, count: results.length, results },
+      body: {
+        input,
+        query: preparedQuery,
+        usedLLM,
+        ...(llmError ? { llmError } : {}),
+        count: results.length,
+        results,
+      },
     };
   } catch (e) {
     context.res = {

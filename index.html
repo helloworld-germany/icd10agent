@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ICD-10-GM Code-Suche (minimal)</title>
+  <title>ICD-10-GM Code-Agent</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; max-width: 900px; }
     label { display:block; margin: 12px 0 6px; font-weight: 600; }
@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <h1>ICD-10-GM Code-Suche (minimal)</h1>
+  <h1>ICD-10-GM Code-Agent</h1>
 
   <p class="muted">
     Diese Seite sucht ICD-10-GM-Codes über eine ICD10-Quelle (BfArM Terminologieserver).
@@ -38,7 +38,7 @@
 
   <div class="row">
     <button id="searchBtn" type="button">Suchen</button>
-    <input id="limit" type="text" inputmode="numeric" value="20" aria-label="Max. Treffer" title="Max. Treffer" />
+    <input id="limit" type="text" inputmode="numeric" value="5" aria-label="Max. Treffer" title="Max. Treffer" />
   </div>
 
   <div id="status" class="status muted">Bereit.</div>
@@ -62,7 +62,7 @@
 
     function parseLimit() {
       const n = Number.parseInt((el.limit.value || '').trim(), 10);
-      if (!Number.isFinite(n) || n <= 0) return 20;
+      if (!Number.isFinite(n) || n <= 0) return 5;
       return Math.min(n, 100);
     }
 
@@ -72,7 +72,17 @@
         url.searchParams.set('text', query);
       url.searchParams.set('limit', String(limit));
       const res = await fetch(url, { method: 'GET' });
-      if (!res.ok) throw new Error(`API HTTP ${res.status}`);
+      if (!res.ok) {
+        const raw = await res.text().catch(() => '');
+        let detail = '';
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed?.message) detail = String(parsed.message);
+        } catch {
+          // ignore
+        }
+        throw new Error(detail ? `API HTTP ${res.status}: ${detail}` : `API HTTP ${res.status}`);
+      }
       return res.json();
     }
 
