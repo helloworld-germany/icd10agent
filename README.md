@@ -244,6 +244,12 @@ If the request fails with HTTP 500, show the Function’s error payload:
 
 `try { Invoke-RestMethod "https://$hostName/api/search?text=diabetes%20mellitus%20typ%202&limit=5" } catch { $_.ErrorDetails.Message }`
 
+If the response includes `llmError` mentioning `ManagedIdentityCredential` / `DefaultAzureCredential`, the Function could not acquire an Entra ID token. Quick checks:
+
+- Confirm SWA is `Standard`: `az staticwebapp show -n $swa -g $rg --query sku.name -o tsv`
+- Confirm identity is assigned (principalId not empty): `az staticwebapp identity show -n $swa -g $rg -o jsonc`
+- Confirm the role assignment exists (may take a minute to appear): `az role assignment list --assignee $principalId --scope $openAiId -o table`
+
 ### SWA App Settings (RBAC / Entra ID)
 
 For RBAC-based auth (no API keys), the Function uses `DefaultAzureCredential` and requests tokens for scope `https://cognitiveservices.azure.com/.default`.

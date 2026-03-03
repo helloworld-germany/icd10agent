@@ -252,7 +252,7 @@ module.exports = async function (context, req) {
         preparedQuery = stripLikelyIcdCodes(text);
         usedLLM = false;
         llmError = (e?.message || String(e) || '').toString();
-        if (llmError.length > 300) llmError = llmError.slice(0, 300);
+        if (llmError.length > 2000) llmError = llmError.slice(0, 2000);
       }
     }
 
