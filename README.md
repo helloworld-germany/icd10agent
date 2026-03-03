@@ -212,17 +212,23 @@ If you already created the deployment successfully, you can skip this step.
 
 `az role assignment create --assignee-object-id $principalId --assignee-principal-type ServicePrincipal --role "Cognitive Services OpenAI User" --scope $openAiId`
 
+Note: Many Azure OpenAI accounts are created with `disableLocalAuth=true` (no API keys). In that case RBAC is required for GPT to work.
+
 RBAC propagation can take a minute. If the next step fails with a permissions error, retry after ~60–120 seconds.
 
 6) Configure the SWA Function app settings:
 
 `$openAiEndpoint = az cognitiveservices account show -g $openAiRg -n $openAiAccount --query properties.endpoint -o tsv`
 
-`az staticwebapp appsettings set -n $swa -g $rg --setting-names AZURE_OPENAI_ENDPOINT=$openAiEndpoint AZURE_OPENAI_DEPLOYMENT=$openAiDeployment AZURE_OPENAI_AUTH_MODE=rbac`
+Important: `properties.endpoint` may look like `https://<region>.api.cognitive.microsoft.com/`. For the OpenAI-compatible API used by this repo, set the base URL explicitly:
+
+`$openAiBaseUrl = "https://$openAiAccount.openai.azure.com/openai/v1/"`
+
+`az staticwebapp appsettings set -n $swa -g $rg --setting-names AZURE_OPENAI_ENDPOINT=$openAiEndpoint AZURE_OPENAI_BASE_URL=$openAiBaseUrl AZURE_OPENAI_DEPLOYMENT=$openAiDeployment AZURE_OPENAI_AUTH_MODE=rbac`
 
 Sanity check (keys should exist; values may be redacted):
 
-`az staticwebapp appsettings list -n $swa -g $rg --query "{AZURE_OPENAI_ENDPOINT:properties.AZURE_OPENAI_ENDPOINT,AZURE_OPENAI_DEPLOYMENT:properties.AZURE_OPENAI_DEPLOYMENT,AZURE_OPENAI_AUTH_MODE:properties.AZURE_OPENAI_AUTH_MODE}" -o jsonc`
+`az staticwebapp appsettings list -n $swa -g $rg --query "{AZURE_OPENAI_ENDPOINT:properties.AZURE_OPENAI_ENDPOINT,AZURE_OPENAI_BASE_URL:properties.AZURE_OPENAI_BASE_URL,AZURE_OPENAI_DEPLOYMENT:properties.AZURE_OPENAI_DEPLOYMENT,AZURE_OPENAI_AUTH_MODE:properties.AZURE_OPENAI_AUTH_MODE}" -o jsonc`
 
 7) Verify (you should see `usedLLM : true`):
 
@@ -249,6 +255,10 @@ If the response includes `llmError` mentioning `ManagedIdentityCredential` / `De
 - Confirm SWA is `Standard`: `az staticwebapp show -n $swa -g $rg --query sku.name -o tsv`
 - Confirm identity is assigned (principalId not empty): `az staticwebapp identity show -n $swa -g $rg -o jsonc`
 - Confirm the role assignment exists (may take a minute to appear): `az role assignment list --assignee $principalId --scope $openAiId -o table`
+
+If `llmError` includes something like `Cannot read properties of undefined (reading 'expires_on')`, that’s a managed identity token parsing issue. This repo works around it by calling the managed identity endpoint directly; redeploy by pushing your latest commit and retry the verify step.
+
+If you still get token-acquisition errors after deploying the latest version (for example managed identity endpoint HTTP errors), the SWA Functions runtime may not be exposing managed identity to the API container. In that case, the RBAC-only option is to host the API as a separate Azure Function App with managed identity and call it from the static site.
 
 ### SWA App Settings (RBAC / Entra ID)
 

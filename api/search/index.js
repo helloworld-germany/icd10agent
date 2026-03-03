@@ -2,6 +2,7 @@ const DATA_URL = 'https://terminologien.bfarm.de/rendering_data/ValueSet-icd10gm
 const CACHE_MS = 24 * 60 * 60 * 1000;
 
 const OPENAI_SCOPE = 'https://cognitiveservices.azure.com/.default';
+const OPENAI_RESOURCE = 'https://cognitiveservices.azure.com/';
 
 let cachedIndex = null;
 let cachedAt = 0;
@@ -95,8 +96,93 @@ function normalizeOpenAIBaseUrl(endpointOrBaseUrl) {
 }
 
 let cachedCredential = null;
+
+async function getManagedIdentityTokenDirect() {
+  // Some hosting environments return a token payload that older identity libs
+  // don't parse correctly (e.g. missing `expires_on`). Calling the endpoint
+  // directly is robust and still RBAC-only.
+
+  const resource = encodeURIComponent(OPENAI_RESOURCE);
+
+  const identityEndpoint = getEnv('IDENTITY_ENDPOINT');
+  const identityHeader = getEnv('IDENTITY_HEADER');
+  if (identityEndpoint && identityHeader) {
+    const u = new URL(identityEndpoint);
+    // Typical API versions: 2019-08-01, 2022-01-01
+    u.searchParams.set('api-version', '2019-08-01');
+    u.searchParams.set('resource', OPENAI_RESOURCE);
+    const res = await fetch(u.toString(), {
+      headers: {
+        'X-IDENTITY-HEADER': identityHeader,
+        accept: 'application/json',
+      },
+    });
+    const txt = await res.text().catch(() => '');
+    if (!res.ok) throw new Error(`Managed identity (IDENTITY_ENDPOINT) HTTP ${res.status}: ${txt.substring(0, 300)}`);
+    const data = JSON.parse(txt);
+    if (!data?.access_token) throw new Error('Managed identity (IDENTITY_ENDPOINT) response missing access_token');
+    return data.access_token;
+  }
+
+  const msiEndpoint = getEnv('MSI_ENDPOINT');
+  const msiSecret = getEnv('MSI_SECRET');
+  if (msiEndpoint && msiSecret) {
+    const u = new URL(msiEndpoint);
+    u.searchParams.set('api-version', '2017-09-01');
+    u.searchParams.set('resource', OPENAI_RESOURCE);
+    const res = await fetch(u.toString(), {
+      headers: {
+        Secret: msiSecret,
+        accept: 'application/json',
+      },
+    });
+    const txt = await res.text().catch(() => '');
+    if (!res.ok) throw new Error(`Managed identity (MSI_ENDPOINT) HTTP ${res.status}: ${txt.substring(0, 300)}`);
+    const data = JSON.parse(txt);
+    if (!data?.access_token) throw new Error('Managed identity (MSI_ENDPOINT) response missing access_token');
+    return data.access_token;
+  }
+
+  // IMDS fallback (works on some hosts)
+  const imdsUrl = `http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=${resource}`;
+  const res = await fetch(imdsUrl, {
+    headers: {
+      Metadata: 'true',
+      accept: 'application/json',
+    },
+  });
+  const txt = await res.text().catch(() => '');
+  if (!res.ok) throw new Error(`Managed identity (IMDS) HTTP ${res.status}: ${txt.substring(0, 300)}`);
+  const data = JSON.parse(txt);
+  if (!data?.access_token) throw new Error('Managed identity (IMDS) response missing access_token');
+  return data.access_token;
+}
+
 async function getBearerToken() {
-  // Lazy-load so that non-LLM usage stays dependency-light.
+  const looksLikeAzure = !!getEnv('WEBSITE_INSTANCE_ID') || !!getEnv('IDENTITY_ENDPOINT') || !!getEnv('MSI_ENDPOINT');
+  if (looksLikeAzure) {
+    try {
+      return await getManagedIdentityTokenDirect();
+    } catch (e) {
+      // Fall back to DefaultAzureCredential (local dev / other environments)
+      // but keep the direct MI error as part of the thrown message if it fails too.
+      const miMsg = (e?.message || String(e) || '').toString();
+      try {
+        // Lazy-load so that non-LLM usage stays dependency-light.
+        // eslint-disable-next-line global-require
+        const { DefaultAzureCredential } = require('@azure/identity');
+        if (!cachedCredential) cachedCredential = new DefaultAzureCredential();
+        const token = await cachedCredential.getToken(OPENAI_SCOPE);
+        if (!token?.token) throw new Error('Failed to acquire Entra ID token for Azure OpenAI');
+        return token.token;
+      } catch (inner) {
+        const innerMsg = (inner?.message || String(inner) || '').toString();
+        throw new Error(`Managed identity failed: ${miMsg}\nDefaultAzureCredential failed: ${innerMsg}`);
+      }
+    }
+  }
+
+  // Local dev / non-Azure
   // eslint-disable-next-line global-require
   const { DefaultAzureCredential } = require('@azure/identity');
   if (!cachedCredential) cachedCredential = new DefaultAzureCredential();
