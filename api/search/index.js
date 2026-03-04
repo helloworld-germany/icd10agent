@@ -111,13 +111,19 @@ async function getManagedIdentityTokenDirect() {
     // Typical API versions: 2019-08-01, 2022-01-01
     u.searchParams.set('api-version', '2019-08-01');
     u.searchParams.set('resource', OPENAI_RESOURCE);
-    const res = await fetch(u.toString(), {
-      headers: {
-        'X-IDENTITY-HEADER': identityHeader,
-        accept: 'application/json',
-      },
-    });
-    const txt = await res.text().catch(() => '');
+    let res;
+    let txt = '';
+    try {
+      res = await fetch(u.toString(), {
+        headers: {
+          'X-IDENTITY-HEADER': identityHeader,
+          accept: 'application/json',
+        },
+      });
+      txt = await res.text().catch(() => '');
+    } catch (e) {
+      throw new Error(`Managed identity (IDENTITY_ENDPOINT) fetch failed: ${e?.message || String(e)}`);
+    }
     if (!res.ok) throw new Error(`Managed identity (IDENTITY_ENDPOINT) HTTP ${res.status}: ${txt.substring(0, 300)}`);
     const data = JSON.parse(txt);
     if (!data?.access_token) throw new Error('Managed identity (IDENTITY_ENDPOINT) response missing access_token');
@@ -130,13 +136,19 @@ async function getManagedIdentityTokenDirect() {
     const u = new URL(msiEndpoint);
     u.searchParams.set('api-version', '2017-09-01');
     u.searchParams.set('resource', OPENAI_RESOURCE);
-    const res = await fetch(u.toString(), {
-      headers: {
-        Secret: msiSecret,
-        accept: 'application/json',
-      },
-    });
-    const txt = await res.text().catch(() => '');
+    let res;
+    let txt = '';
+    try {
+      res = await fetch(u.toString(), {
+        headers: {
+          Secret: msiSecret,
+          accept: 'application/json',
+        },
+      });
+      txt = await res.text().catch(() => '');
+    } catch (e) {
+      throw new Error(`Managed identity (MSI_ENDPOINT) fetch failed: ${e?.message || String(e)}`);
+    }
     if (!res.ok) throw new Error(`Managed identity (MSI_ENDPOINT) HTTP ${res.status}: ${txt.substring(0, 300)}`);
     const data = JSON.parse(txt);
     if (!data?.access_token) throw new Error('Managed identity (MSI_ENDPOINT) response missing access_token');
@@ -145,13 +157,19 @@ async function getManagedIdentityTokenDirect() {
 
   // IMDS fallback (works on some hosts)
   const imdsUrl = `http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=${resource}`;
-  const res = await fetch(imdsUrl, {
-    headers: {
-      Metadata: 'true',
-      accept: 'application/json',
-    },
-  });
-  const txt = await res.text().catch(() => '');
+  let res;
+  let txt = '';
+  try {
+    res = await fetch(imdsUrl, {
+      headers: {
+        Metadata: 'true',
+        accept: 'application/json',
+      },
+    });
+    txt = await res.text().catch(() => '');
+  } catch (e) {
+    throw new Error(`Managed identity (IMDS) fetch failed: ${e?.message || String(e)}`);
+  }
   if (!res.ok) throw new Error(`Managed identity (IMDS) HTTP ${res.status}: ${txt.substring(0, 300)}`);
   const data = JSON.parse(txt);
   if (!data?.access_token) throw new Error('Managed identity (IMDS) response missing access_token');
@@ -161,25 +179,10 @@ async function getManagedIdentityTokenDirect() {
 async function getBearerToken() {
   const looksLikeAzure = !!getEnv('WEBSITE_INSTANCE_ID') || !!getEnv('IDENTITY_ENDPOINT') || !!getEnv('MSI_ENDPOINT');
   if (looksLikeAzure) {
-    try {
-      return await getManagedIdentityTokenDirect();
-    } catch (e) {
-      // Fall back to DefaultAzureCredential (local dev / other environments)
-      // but keep the direct MI error as part of the thrown message if it fails too.
-      const miMsg = (e?.message || String(e) || '').toString();
-      try {
-        // Lazy-load so that non-LLM usage stays dependency-light.
-        // eslint-disable-next-line global-require
-        const { DefaultAzureCredential } = require('@azure/identity');
-        if (!cachedCredential) cachedCredential = new DefaultAzureCredential();
-        const token = await cachedCredential.getToken(OPENAI_SCOPE);
-        if (!token?.token) throw new Error('Failed to acquire Entra ID token for Azure OpenAI');
-        return token.token;
-      } catch (inner) {
-        const innerMsg = (inner?.message || String(inner) || '').toString();
-        throw new Error(`Managed identity failed: ${miMsg}\nDefaultAzureCredential failed: ${innerMsg}`);
-      }
-    }
+    // In Azure-hosted runtime we expect managed identity to work.
+    // DefaultAzureCredential falls back to dev-time credentials (VS Code/CLI/PowerShell)
+    // which are not available inside SWA Functions and adds noisy errors.
+    return await getManagedIdentityTokenDirect();
   }
 
   // Local dev / non-Azure

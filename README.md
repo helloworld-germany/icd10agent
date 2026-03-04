@@ -256,9 +256,11 @@ If the response includes `llmError` mentioning `ManagedIdentityCredential` / `De
 - Confirm identity is assigned (principalId not empty): `az staticwebapp identity show -n $swa -g $rg -o jsonc`
 - Confirm the role assignment exists (may take a minute to appear): `az role assignment list --assignee $principalId --scope $openAiId -o table`
 
-If `llmError` includes something like `Cannot read properties of undefined (reading 'expires_on')`, that’s a managed identity token parsing issue. This repo works around it by calling the managed identity endpoint directly; redeploy by pushing your latest commit and retry the verify step.
+If `llmError` includes something like `Cannot read properties of undefined (reading 'expires_on')`, that’s a managed identity token parsing issue in some runtimes. This repo works around it by calling the managed identity endpoint directly; redeploy by pushing your latest commit and retry the verify step.
 
-If you still get token-acquisition errors after deploying the latest version (for example managed identity endpoint HTTP errors), the SWA Functions runtime may not be exposing managed identity to the API container. In that case, the RBAC-only option is to host the API as a separate Azure Function App with managed identity and call it from the static site.
+If `llmError` includes `Managed identity (IDENTITY_ENDPOINT) fetch failed` / `Managed identity (MSI_ENDPOINT) fetch failed` / `Managed identity (IMDS) fetch failed`, the Functions runtime likely does **not** expose managed identity token endpoints to the API container (even if the SWA resource has an identity).
+
+In that case, the reliable RBAC-only option is to host the API as a separate Azure Function App (or similar compute) with managed identity and call it from the static site.
 
 ### SWA App Settings (RBAC / Entra ID)
 
