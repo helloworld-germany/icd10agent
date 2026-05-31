@@ -1,0 +1,1281 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.43.8.12551",
+      "templateHash": "15460955688564852187"
+    }
+  },
+  "parameters": {
+    "resourceGroupName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the resource group to create."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "germanywestcentral",
+      "metadata": {
+        "description": "Azure region. Recommended (verified Mistral + DataZoneStandard SKUs): germanywestcentral, switzerlandnorth, swedencentral. Any other Azure region also works as long as your chosen llmProfile models are available there."
+      }
+    },
+    "nameSuffix": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 8,
+      "metadata": {
+        "description": "Unique suffix for globally unique names (lowercase, 3-8 chars)."
+      }
+    },
+    "nodeVersion": {
+      "type": "string",
+      "defaultValue": "~22",
+      "metadata": {
+        "description": "Node.js runtime version."
+      }
+    },
+    "llmProfile": {
+      "type": "string",
+      "defaultValue": "aoai-eu",
+      "allowedValues": [
+        "aoai-eu",
+        "aoai-eu-cost",
+        "mistral-eu",
+        "mistral-eu-cost"
+      ],
+      "metadata": {
+        "description": "LLM profile. aoai-eu = gpt-5.4 (DataZone) + gpt-4.1-mini (DataZone) — recommended default. aoai-eu-cost = gpt-5.4 (DataZone) + gpt-5.4-mini (Global). mistral-eu = Mistral-Large-3 (DataZone) only, single model for both roles. mistral-eu-cost = Mistral-Large-3 (DataZone) + mistral-small-2503 (Global)."
+      }
+    },
+    "llmReasoningCapacity": {
+      "type": "int",
+      "defaultValue": 100,
+      "minValue": 1,
+      "metadata": {
+        "description": "TPM capacity (thousands tokens/min) for the reasoning deployment."
+      }
+    },
+    "llmFastCapacity": {
+      "type": "int",
+      "defaultValue": 50,
+      "minValue": 1,
+      "metadata": {
+        "description": "TPM capacity for the fast deployment."
+      }
+    },
+    "reasoningEffort": {
+      "type": "string",
+      "defaultValue": "medium",
+      "allowedValues": [
+        "",
+        "low",
+        "medium",
+        "high"
+      ],
+      "metadata": {
+        "description": "Reasoning effort for the reasoning role (AOAI reasoning models only; ignored for Mistral). Empty = model default."
+      }
+    },
+    "whoIcdClientId": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "WHO ICD-API client id (https://icd.who.int/icdapi). Required only for ICD-11."
+      }
+    },
+    "whoIcdClientSecret": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "WHO ICD-API client secret. Required only for ICD-11."
+      }
+    },
+    "whoIcdRelease": {
+      "type": "string",
+      "defaultValue": "2026-01",
+      "metadata": {
+        "description": "WHO ICD-11 release."
+      }
+    },
+    "whoIcdLanguage": {
+      "type": "string",
+      "defaultValue": "de",
+      "metadata": {
+        "description": "WHO ICD-11 language (ISO 639-1)."
+      }
+    },
+    "icd10gmValueSetUrl": {
+      "type": "string",
+      "defaultValue": "https://terminologien.bfarm.de/rendering_data/ValueSet-icd10gm-terminale-codes-2026.json",
+      "metadata": {
+        "description": "BfArM ICD-10-GM ValueSet JSON URL."
+      }
+    },
+    "defaultSystem": {
+      "type": "string",
+      "defaultValue": "icd10gm",
+      "allowedValues": [
+        "icd10gm",
+        "icd11"
+      ],
+      "metadata": {
+        "description": "Default classification system for requests without ?system=."
+      }
+    },
+    "deployApim": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Deploy APIM facade in front of the Function App."
+      }
+    },
+    "apimPublisherEmail": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Publisher email for the APIM developer portal (required if deployApim=true)."
+      }
+    },
+    "apimPublisherName": {
+      "type": "string",
+      "defaultValue": "ICD Classifier",
+      "metadata": {
+        "description": "Publisher organization name shown in the APIM developer portal."
+      }
+    },
+    "whoIcdClientIdSecretUri": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional Key Vault secret URI for WHO_ICD_CLIENT_ID (BYOK)."
+      }
+    },
+    "whoIcdClientSecretSecretUri": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional Key Vault secret URI for WHO_ICD_CLIENT_SECRET (BYOK)."
+      }
+    },
+    "functionPackageUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional public HTTPS URL of a Function App .zip package for true 1-click code deploy."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('resourceGroupName')]",
+      "location": "[parameters('location')]"
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('core-{0}', parameters('nameSuffix'))]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "nameSuffix": {
+            "value": "[parameters('nameSuffix')]"
+          },
+          "nodeVersion": {
+            "value": "[parameters('nodeVersion')]"
+          },
+          "whoIcdClientId": {
+            "value": "[parameters('whoIcdClientId')]"
+          },
+          "whoIcdClientSecret": {
+            "value": "[parameters('whoIcdClientSecret')]"
+          },
+          "whoIcdRelease": {
+            "value": "[parameters('whoIcdRelease')]"
+          },
+          "whoIcdLanguage": {
+            "value": "[parameters('whoIcdLanguage')]"
+          },
+          "icd10gmValueSetUrl": {
+            "value": "[parameters('icd10gmValueSetUrl')]"
+          },
+          "defaultSystem": {
+            "value": "[parameters('defaultSystem')]"
+          },
+          "llmProfile": {
+            "value": "[parameters('llmProfile')]"
+          },
+          "llmReasoningCapacity": {
+            "value": "[parameters('llmReasoningCapacity')]"
+          },
+          "llmFastCapacity": {
+            "value": "[parameters('llmFastCapacity')]"
+          },
+          "reasoningEffort": {
+            "value": "[parameters('reasoningEffort')]"
+          },
+          "whoIcdClientIdSecretUri": {
+            "value": "[parameters('whoIcdClientIdSecretUri')]"
+          },
+          "whoIcdClientSecretSecretUri": {
+            "value": "[parameters('whoIcdClientSecretSecretUri')]"
+          },
+          "functionPackageUrl": {
+            "value": "[parameters('functionPackageUrl')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "14457002691021561321"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources. Recommended (Mistral + DataZoneStandard SKUs verified): germanywestcentral, switzerlandnorth, swedencentral."
+              }
+            },
+            "nameSuffix": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 8,
+              "metadata": {
+                "description": "Unique suffix for globally unique names."
+              }
+            },
+            "nodeVersion": {
+              "type": "string",
+              "defaultValue": "~22",
+              "metadata": {
+                "description": "Node.js runtime version (e.g. ~22)."
+              }
+            },
+            "whoIcdClientId": {
+              "type": "securestring",
+              "defaultValue": ""
+            },
+            "whoIcdClientSecret": {
+              "type": "securestring",
+              "defaultValue": ""
+            },
+            "whoIcdRelease": {
+              "type": "string",
+              "defaultValue": "2026-01"
+            },
+            "whoIcdLanguage": {
+              "type": "string",
+              "defaultValue": "de"
+            },
+            "icd10gmValueSetUrl": {
+              "type": "string",
+              "defaultValue": "https://terminologien.bfarm.de/rendering_data/ValueSet-icd10gm-terminale-codes-2026.json"
+            },
+            "defaultSystem": {
+              "type": "string",
+              "defaultValue": "icd10gm",
+              "allowedValues": [
+                "icd10gm",
+                "icd11"
+              ]
+            },
+            "llmProfile": {
+              "type": "string",
+              "defaultValue": "aoai-eu",
+              "allowedValues": [
+                "aoai-eu",
+                "aoai-eu-cost",
+                "mistral-eu",
+                "mistral-eu-cost"
+              ],
+              "metadata": {
+                "description": "LLM profile. aoai-eu = gpt-5.4 + gpt-4.1-mini (both DataZone). aoai-eu-cost = gpt-5.4 DataZone + gpt-5.4-mini Global. mistral-eu = Mistral-Large-3 only (DataZone). mistral-eu-cost = Mistral-Large-3 DataZone + mistral-small-2503 Global."
+              }
+            },
+            "llmReasoningCapacity": {
+              "type": "int",
+              "defaultValue": 100,
+              "minValue": 1
+            },
+            "llmFastCapacity": {
+              "type": "int",
+              "defaultValue": 50,
+              "minValue": 1
+            },
+            "reasoningEffort": {
+              "type": "string",
+              "defaultValue": "medium",
+              "allowedValues": [
+                "",
+                "low",
+                "medium",
+                "high"
+              ],
+              "metadata": {
+                "description": "Reasoning effort for the reasoning role (AOAI reasoning models only; ignored for Mistral). low | medium | high. Empty = model default."
+              }
+            },
+            "whoIcdClientIdSecretUri": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional Key Vault secret URI for WHO_ICD_CLIENT_ID (BYOK)."
+              }
+            },
+            "whoIcdClientSecretSecretUri": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional Key Vault secret URI for WHO_ICD_CLIENT_SECRET (BYOK)."
+              }
+            },
+            "functionPackageUrl": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Public HTTPS URL of a function-app .zip package to mount via WEBSITE_RUN_FROM_PACKAGE. Empty = deploy code separately."
+              }
+            }
+          },
+          "variables": {
+            "cognitiveServicesUserRole": "a97b65f3-24c7-4388-baec-2e87135dc908",
+            "cognitiveServicesOpenAIUserRole": "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd",
+            "storageBlobDataOwnerRole": "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",
+            "storageQueueDataContributorRole": "974c5e8b-45b9-4653-ba55-5f855dd0fb88",
+            "storageTableDataContributorRole": "0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3",
+            "storageSubResources": [
+              "blob",
+              "queue",
+              "table",
+              "file"
+            ],
+            "packageAppSettings": "[if(empty(parameters('functionPackageUrl')), createArray(), createArray(createObject('name', 'WEBSITE_RUN_FROM_PACKAGE', 'value', parameters('functionPackageUrl'))))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2023-05-01",
+              "name": "[format('sticd{0}', parameters('nameSuffix'))]",
+              "location": "[parameters('location')]",
+              "kind": "StorageV2",
+              "sku": {
+                "name": "Standard_LRS"
+              },
+              "properties": {
+                "supportsHttpsTrafficOnly": true,
+                "minimumTlsVersion": "TLS1_2",
+                "allowSharedKeyAccess": false,
+                "allowBlobPublicAccess": false,
+                "networkAcls": {
+                  "defaultAction": "Deny",
+                  "bypass": "AzureServices"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2024-01-01",
+              "name": "[format('vnet-icd-{0}', parameters('nameSuffix'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": [
+                    "10.30.0.0/16"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworks/subnets",
+              "apiVersion": "2024-01-01",
+              "name": "[format('{0}/{1}', format('vnet-icd-{0}', parameters('nameSuffix')), 'snet-app')]",
+              "properties": {
+                "addressPrefix": "10.30.1.0/24",
+                "delegations": [
+                  {
+                    "name": "delegation-app",
+                    "properties": {
+                      "serviceName": "Microsoft.Web/serverFarms"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', format('vnet-icd-{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworks/subnets",
+              "apiVersion": "2024-01-01",
+              "name": "[format('{0}/{1}', format('vnet-icd-{0}', parameters('nameSuffix')), 'snet-pe')]",
+              "properties": {
+                "addressPrefix": "10.30.2.0/24",
+                "privateEndpointNetworkPolicies": "Disabled"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', format('vnet-icd-{0}', parameters('nameSuffix')), 'snet-app')]",
+                "[resourceId('Microsoft.Network/virtualNetworks', format('vnet-icd-{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Web/serverfarms",
+              "apiVersion": "2023-12-01",
+              "name": "[format('plan-icd-{0}', parameters('nameSuffix'))]",
+              "location": "[parameters('location')]",
+              "kind": "elastic",
+              "sku": {
+                "name": "EP1",
+                "tier": "ElasticPremium"
+              },
+              "properties": {
+                "reserved": true
+              }
+            },
+            {
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02",
+              "name": "[format('ai-icd-{0}-insights', parameters('nameSuffix'))]",
+              "location": "[parameters('location')]",
+              "kind": "web",
+              "properties": {
+                "Application_Type": "web",
+                "Request_Source": "rest"
+              }
+            },
+            {
+              "type": "Microsoft.CognitiveServices/accounts",
+              "apiVersion": "2024-10-01",
+              "name": "[format('cv-icd-{0}', parameters('nameSuffix'))]",
+              "location": "[parameters('location')]",
+              "kind": "ComputerVision",
+              "sku": {
+                "name": "S1"
+              },
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "customSubDomainName": "[format('cv-icd-{0}', parameters('nameSuffix'))]",
+                "disableLocalAuth": true,
+                "publicNetworkAccess": "Enabled"
+              }
+            },
+            {
+              "type": "Microsoft.Web/sites",
+              "apiVersion": "2023-12-01",
+              "name": "[format('func-icd-{0}', parameters('nameSuffix'))]",
+              "location": "[parameters('location')]",
+              "kind": "functionapp,linux",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', format('plan-icd-{0}', parameters('nameSuffix')))]",
+                "virtualNetworkSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', format('vnet-icd-{0}', parameters('nameSuffix')), 'snet-app')]",
+                "httpsOnly": true,
+                "siteConfig": {
+                  "linuxFxVersion": "Node|22",
+                  "ftpsState": "Disabled",
+                  "minTlsVersion": "1.2",
+                  "appSettings": "[union(createArray(createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', 'node'), createObject('name', 'WEBSITE_NODE_DEFAULT_VERSION', 'value', parameters('nodeVersion')), createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', reference(resourceId('Microsoft.Insights/components', format('ai-icd-{0}-insights', parameters('nameSuffix'))), '2020-02-02').ConnectionString), createObject('name', 'AzureWebJobsStorage__accountName', 'value', format('sticd{0}', parameters('nameSuffix'))), createObject('name', 'WEBSITE_CONTENTOVERVNET', 'value', '1'), createObject('name', 'WEBSITE_VNET_ROUTE_ALL', 'value', '1'), createObject('name', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'value', 'true')), variables('packageAppSettings'), if(equals(reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.providerTag.value, 'mistral'), createArray(createObject('name', 'AZURE_MISTRAL_AUTH_MODE', 'value', 'rbac'), createObject('name', 'AZURE_MISTRAL_ENDPOINT', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.endpoint.value), createObject('name', 'AZURE_MISTRAL_DEPLOYMENT', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value), createObject('name', 'AZURE_MISTRAL_DEPLOYMENT_REASONING', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value), createObject('name', 'AZURE_MISTRAL_DEPLOYMENT_FAST', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.fastDeploymentName.value)), createArray(createObject('name', 'AZURE_OPENAI_AUTH_MODE', 'value', 'rbac'), createObject('name', 'AZURE_OPENAI_ENDPOINT', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.endpoint.value), createObject('name', 'AZURE_OPENAI_DEPLOYMENT', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value), createObject('name', 'AZURE_OPENAI_DEPLOYMENT_REASONING', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value), createObject('name', 'AZURE_OPENAI_DEPLOYMENT_FAST', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.fastDeploymentName.value), createObject('name', 'AZURE_OPENAI_REASONING_EFFORT_REASONING', 'value', parameters('reasoningEffort')))), createArray(createObject('name', 'DEFAULT_SYSTEM', 'value', parameters('defaultSystem')), createObject('name', 'ICD10GM_VALUESET_URL', 'value', parameters('icd10gmValueSetUrl')), createObject('name', 'WHO_ICD_RELEASE', 'value', parameters('whoIcdRelease')), createObject('name', 'WHO_ICD_LANGUAGE', 'value', parameters('whoIcdLanguage')), createObject('name', 'WHO_ICD_CLIENT_ID', 'value', if(empty(parameters('whoIcdClientIdSecretUri')), parameters('whoIcdClientId'), format('@Microsoft.KeyVault(SecretUri={0})', parameters('whoIcdClientIdSecretUri')))), createObject('name', 'WHO_ICD_CLIENT_SECRET', 'value', if(empty(parameters('whoIcdClientSecretSecretUri')), parameters('whoIcdClientSecret'), format('@Microsoft.KeyVault(SecretUri={0})', parameters('whoIcdClientSecretSecretUri')))), createObject('name', 'AZURE_VISION_ENDPOINT', 'value', reference(resourceId('Microsoft.CognitiveServices/accounts', format('cv-icd-{0}', parameters('nameSuffix'))), '2024-10-01').endpoint)))]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/components', format('ai-icd-{0}-insights', parameters('nameSuffix')))]",
+                "[resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix')))]",
+                "[resourceId('Microsoft.Web/serverfarms', format('plan-icd-{0}', parameters('nameSuffix')))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', format('sticd{0}', parameters('nameSuffix')))]",
+                "storagePeDnsGroups",
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', format('vnet-icd-{0}', parameters('nameSuffix')), 'snet-app')]",
+                "[resourceId('Microsoft.CognitiveServices/accounts', format('cv-icd-{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', format('cv-icd-{0}', parameters('nameSuffix')))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', format('cv-icd-{0}', parameters('nameSuffix'))), resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix'))), variables('cognitiveServicesUserRole'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('cognitiveServicesUserRole'))]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix'))), '2023-12-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix')))]",
+                "[resourceId('Microsoft.CognitiveServices/accounts', format('cv-icd-{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', format('ai-icd-{0}', parameters('nameSuffix')))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', format('ai-icd-{0}', parameters('nameSuffix'))), resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix'))), variables('cognitiveServicesOpenAIUserRole'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('cognitiveServicesOpenAIUserRole'))]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix'))), '2023-12-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Storage/storageAccounts', format('sticd{0}', parameters('nameSuffix')))]",
+              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', format('sticd{0}', parameters('nameSuffix'))), resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix'))), variables('storageBlobDataOwnerRole'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('storageBlobDataOwnerRole'))]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix'))), '2023-12-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix')))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', format('sticd{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Storage/storageAccounts', format('sticd{0}', parameters('nameSuffix')))]",
+              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', format('sticd{0}', parameters('nameSuffix'))), resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix'))), variables('storageQueueDataContributorRole'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('storageQueueDataContributorRole'))]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix'))), '2023-12-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix')))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', format('sticd{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Storage/storageAccounts', format('sticd{0}', parameters('nameSuffix')))]",
+              "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', format('sticd{0}', parameters('nameSuffix'))), resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix'))), variables('storageTableDataContributorRole'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('storageTableDataContributorRole'))]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix'))), '2023-12-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix')))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', format('sticd{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "storageDnsZones",
+                "count": "[length(variables('storageSubResources'))]"
+              },
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2020-06-01",
+              "name": "[format('privatelink.{0}.{1}', variables('storageSubResources')[copyIndex()], environment().suffixes.storage)]",
+              "location": "global"
+            },
+            {
+              "copy": {
+                "name": "storageDnsZoneLinks",
+                "count": "[length(variables('storageSubResources'))]"
+              },
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', format('privatelink.{0}.{1}', variables('storageSubResources')[copyIndex()], environment().suffixes.storage), format('link-{0}', variables('storageSubResources')[copyIndex()]))]",
+              "location": "global",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks', format('vnet-icd-{0}', parameters('nameSuffix')))]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.{0}.{1}', variables('storageSubResources')[copyIndex()], environment().suffixes.storage))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', format('vnet-icd-{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "storagePe",
+                "count": "[length(variables('storageSubResources'))]"
+              },
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-01-01",
+              "name": "[format('pe-{0}-icd-{1}', variables('storageSubResources')[copyIndex()], parameters('nameSuffix'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "subnet": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', format('vnet-icd-{0}', parameters('nameSuffix')), 'snet-pe')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[variables('storageSubResources')[copyIndex()]]",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', format('sticd{0}', parameters('nameSuffix')))]",
+                      "groupIds": [
+                        "[variables('storageSubResources')[copyIndex()]]"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', format('sticd{0}', parameters('nameSuffix')))]",
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', format('vnet-icd-{0}', parameters('nameSuffix')), 'snet-pe')]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "storagePeDnsGroups",
+                "count": "[length(variables('storageSubResources'))]"
+              },
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2024-01-01",
+              "name": "[format('{0}/{1}', format('pe-{0}-icd-{1}', variables('storageSubResources')[copyIndex()], parameters('nameSuffix')), 'default')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "[variables('storageSubResources')[copyIndex()]]",
+                    "properties": {
+                      "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.{0}.{1}', variables('storageSubResources')[copyIndex()], environment().suffixes.storage))]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.{0}.{1}', variables('storageSubResources')[copyIndex()], environment().suffixes.storage))]",
+                "[resourceId('Microsoft.Network/privateEndpoints', format('pe-{0}-icd-{1}', variables('storageSubResources')[copyIndex()], parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "[format('llm-{0}', parameters('nameSuffix'))]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "nameSuffix": {
+                    "value": "[parameters('nameSuffix')]"
+                  },
+                  "profile": {
+                    "value": "[parameters('llmProfile')]"
+                  },
+                  "reasoningCapacity": {
+                    "value": "[parameters('llmReasoningCapacity')]"
+                  },
+                  "fastCapacity": {
+                    "value": "[parameters('llmFastCapacity')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.43.8.12551",
+                      "templateHash": "13421398333779724758"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for the AIServices account."
+                      }
+                    },
+                    "nameSuffix": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 8,
+                      "metadata": {
+                        "description": "Unique suffix appended to resource names."
+                      }
+                    },
+                    "profile": {
+                      "type": "string",
+                      "allowedValues": [
+                        "aoai-eu",
+                        "aoai-eu-cost",
+                        "mistral-eu",
+                        "mistral-eu-cost"
+                      ],
+                      "metadata": {
+                        "description": "LLM profile to provision."
+                      }
+                    },
+                    "reasoningCapacity": {
+                      "type": "int",
+                      "defaultValue": 100,
+                      "minValue": 1,
+                      "metadata": {
+                        "description": "TPM capacity (thousands of tokens per minute) for the reasoning deployment."
+                      }
+                    },
+                    "fastCapacity": {
+                      "type": "int",
+                      "defaultValue": 50,
+                      "minValue": 1,
+                      "metadata": {
+                        "description": "TPM capacity for the fast deployment."
+                      }
+                    }
+                  },
+                  "variables": {
+                    "profiles": {
+                      "aoai-eu": {
+                        "providerTag": "aoai",
+                        "reasoning": {
+                          "format": "OpenAI",
+                          "name": "gpt-5.4",
+                          "version": "2026-03-05",
+                          "sku": "DataZoneStandard"
+                        },
+                        "fast": {
+                          "format": "OpenAI",
+                          "name": "gpt-4.1-mini",
+                          "version": "2025-04-14",
+                          "sku": "DataZoneStandard"
+                        },
+                        "singleModel": false,
+                        "maxReasoning": 1000,
+                        "maxFast": 1000
+                      },
+                      "aoai-eu-cost": {
+                        "providerTag": "aoai",
+                        "reasoning": {
+                          "format": "OpenAI",
+                          "name": "gpt-5.4",
+                          "version": "2026-03-05",
+                          "sku": "DataZoneStandard"
+                        },
+                        "fast": {
+                          "format": "OpenAI",
+                          "name": "gpt-5.4-mini",
+                          "version": "2026-03-17",
+                          "sku": "GlobalStandard"
+                        },
+                        "singleModel": false,
+                        "maxReasoning": 1000,
+                        "maxFast": 1000
+                      },
+                      "mistral-eu": {
+                        "providerTag": "mistral",
+                        "reasoning": {
+                          "format": "Mistral AI",
+                          "name": "Mistral-Large-3",
+                          "version": "1",
+                          "sku": "DataZoneStandard"
+                        },
+                        "fast": {
+                          "format": "Mistral AI",
+                          "name": "Mistral-Large-3",
+                          "version": "1",
+                          "sku": "DataZoneStandard"
+                        },
+                        "singleModel": true,
+                        "maxReasoning": 20,
+                        "maxFast": 20
+                      },
+                      "mistral-eu-cost": {
+                        "providerTag": "mistral",
+                        "reasoning": {
+                          "format": "Mistral AI",
+                          "name": "Mistral-Large-3",
+                          "version": "1",
+                          "sku": "DataZoneStandard"
+                        },
+                        "fast": {
+                          "format": "Mistral AI",
+                          "name": "mistral-small-2503",
+                          "version": "1",
+                          "sku": "GlobalStandard"
+                        },
+                        "singleModel": false,
+                        "maxReasoning": 20,
+                        "maxFast": 1
+                      }
+                    },
+                    "p": "[variables('profiles')[parameters('profile')]]",
+                    "effectiveReasoningCapacity": "[min(parameters('reasoningCapacity'), variables('p').maxReasoning)]",
+                    "effectiveFastCapacity": "[min(parameters('fastCapacity'), variables('p').maxFast)]",
+                    "deploymentSpecs": "[if(variables('p').singleModel, createArray(createObject('name', variables('p').reasoning.name, 'sku', variables('p').reasoning.sku, 'capacity', variables('effectiveReasoningCapacity'), 'format', variables('p').reasoning.format, 'version', variables('p').reasoning.version)), createArray(createObject('name', variables('p').reasoning.name, 'sku', variables('p').reasoning.sku, 'capacity', variables('effectiveReasoningCapacity'), 'format', variables('p').reasoning.format, 'version', variables('p').reasoning.version), createObject('name', variables('p').fast.name, 'sku', variables('p').fast.sku, 'capacity', variables('effectiveFastCapacity'), 'format', variables('p').fast.format, 'version', variables('p').fast.version)))]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.CognitiveServices/accounts",
+                      "apiVersion": "2024-10-01",
+                      "name": "[format('ai-icd-{0}', parameters('nameSuffix'))]",
+                      "location": "[parameters('location')]",
+                      "kind": "AIServices",
+                      "sku": {
+                        "name": "S0"
+                      },
+                      "identity": {
+                        "type": "SystemAssigned"
+                      },
+                      "properties": {
+                        "customSubDomainName": "[format('ai-icd-{0}', parameters('nameSuffix'))]",
+                        "disableLocalAuth": true,
+                        "publicNetworkAccess": "Enabled"
+                      }
+                    },
+                    {
+                      "copy": {
+                        "name": "deployments",
+                        "count": "[length(variables('deploymentSpecs'))]",
+                        "mode": "serial",
+                        "batchSize": 1
+                      },
+                      "type": "Microsoft.CognitiveServices/accounts/deployments",
+                      "apiVersion": "2024-10-01",
+                      "name": "[format('{0}/{1}', format('ai-icd-{0}', parameters('nameSuffix')), variables('deploymentSpecs')[copyIndex()].name)]",
+                      "sku": {
+                        "name": "[variables('deploymentSpecs')[copyIndex()].sku]",
+                        "capacity": "[variables('deploymentSpecs')[copyIndex()].capacity]"
+                      },
+                      "properties": {
+                        "model": {
+                          "format": "[variables('deploymentSpecs')[copyIndex()].format]",
+                          "name": "[variables('deploymentSpecs')[copyIndex()].name]",
+                          "version": "[variables('deploymentSpecs')[copyIndex()].version]"
+                        }
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.CognitiveServices/accounts', format('ai-icd-{0}', parameters('nameSuffix')))]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "accountId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.CognitiveServices/accounts', format('ai-icd-{0}', parameters('nameSuffix')))]"
+                    },
+                    "accountName": {
+                      "type": "string",
+                      "value": "[format('ai-icd-{0}', parameters('nameSuffix'))]"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', format('ai-icd-{0}', parameters('nameSuffix'))), '2024-10-01').endpoint]"
+                    },
+                    "providerTag": {
+                      "type": "string",
+                      "value": "[variables('p').providerTag]"
+                    },
+                    "reasoningDeploymentName": {
+                      "type": "string",
+                      "value": "[variables('p').reasoning.name]"
+                    },
+                    "fastDeploymentName": {
+                      "type": "string",
+                      "value": "[if(variables('p').singleModel, variables('p').reasoning.name, variables('p').fast.name)]"
+                    },
+                    "reasoningModelLabel": {
+                      "type": "string",
+                      "value": "[format('{0} {1}@{2} ({3})', variables('p').reasoning.format, variables('p').reasoning.name, variables('p').reasoning.version, variables('p').reasoning.sku)]"
+                    },
+                    "fastModelLabel": {
+                      "type": "string",
+                      "value": "[format('{0} {1}@{2} ({3})', variables('p').fast.format, variables('p').fast.name, variables('p').fast.version, variables('p').fast.sku)]"
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "functionAppName": {
+              "type": "string",
+              "value": "[format('func-icd-{0}', parameters('nameSuffix'))]"
+            },
+            "functionAppUrl": {
+              "type": "string",
+              "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/sites', format('func-icd-{0}', parameters('nameSuffix'))), '2023-12-01').defaultHostName)]"
+            },
+            "visionEndpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', format('cv-icd-{0}', parameters('nameSuffix'))), '2024-10-01').endpoint]"
+            },
+            "llmEndpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.endpoint.value]"
+            },
+            "llmProvider": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.providerTag.value]"
+            },
+            "llmReasoningDeployment": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value]"
+            },
+            "llmFastDeployment": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.fastDeploymentName.value]"
+            },
+            "llmReasoningModelLabel": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningModelLabel.value]"
+            },
+            "llmFastModelLabel": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.fastModelLabel.value]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployApim')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('apim-{0}', parameters('nameSuffix'))]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "nameSuffix": {
+            "value": "[parameters('nameSuffix')]"
+          },
+          "publisherEmail": {
+            "value": "[parameters('apimPublisherEmail')]"
+          },
+          "publisherName": {
+            "value": "[parameters('apimPublisherName')]"
+          },
+          "functionAppHostName": {
+            "value": "[format('{0}.azurewebsites.net', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('core-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.functionAppName.value)]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "8244699539396504890"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource location"
+              }
+            },
+            "nameSuffix": {
+              "type": "string",
+              "metadata": {
+                "description": "Unique suffix for globally unique names (3-8 chars, lowercase)"
+              }
+            },
+            "publisherEmail": {
+              "type": "string",
+              "metadata": {
+                "description": "Publisher email shown in the APIM developer portal"
+              }
+            },
+            "publisherName": {
+              "type": "string",
+              "metadata": {
+                "description": "Publisher organization name"
+              }
+            },
+            "functionAppHostName": {
+              "type": "string",
+              "metadata": {
+                "description": "Function App default hostname (e.g. func-icd-xxx.azurewebsites.net)"
+              }
+            },
+            "functionKeyValue": {
+              "type": "securestring",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Initial function key (optional). If empty, deploy.ps1 sets it post-deploy."
+              }
+            }
+          },
+          "variables": {
+            "openApiYaml": "openapi: 3.0.3\ninfo:\n  title: ICD Classifier\n  version: '1.0'\n  description: |\n    Klassifiziert klinischen Freitext oder hochgeladene Dokumente (PDF/Bild) gegen ICD-Codes.\nservers:\n  - url: https://example.invalid\npaths:\n  /search:\n    get:\n      operationId: SearchCodes\n      summary: ICD-Codes per Volltext suchen\n      description: Liefert die besten Treffer zu einem Suchtext (Diagnosename, Stichwort, Code-Präfix).\n      parameters:\n        - in: query\n          name: text\n          required: true\n          description: Suchtext, z.B. \"Diabetes Typ 2\" oder \"I21\".\n          schema: { type: string }\n        - in: query\n          name: limit\n          required: false\n          description: Maximale Trefferanzahl (1-50, Default 10).\n          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }\n      responses:\n        '200':\n          description: Suchergebnisse\n          content:\n            application/json:\n              schema: { $ref: '#/components/schemas/SearchResponse' }\n        '400': { $ref: '#/components/responses/BadRequest' }\n        '401': { $ref: '#/components/responses/Unauthorized' }\n\n  /classify:\n    post:\n      operationId: Classify\n      summary: Freitext oder Dokument klassifizieren\n      description: |\n        Genau eines der folgenden Felder im Body angeben:\n        * `text` — Freitext zur Klassifikation (Arztbrief, Befund, Diagnoseliste).\n        * `file` + `fileContentType` — Dokument als Base64 (PDF, PNG, JPG, TIFF, BMP).\n        Liefert strukturierte Codes mit Display, Confidence, Rolle (Hauptdiagnose/Komorbidität/…), Seite und Verifizierungs-Flag.\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema: { $ref: '#/components/schemas/ClassifyRequest' }\n      responses:\n        '200':\n          description: Klassifikationsergebnis\n          content:\n            application/json:\n              schema: { $ref: '#/components/schemas/ClassifyResponse' }\n        '400': { $ref: '#/components/responses/BadRequest' }\n        '401': { $ref: '#/components/responses/Unauthorized' }\n\ncomponents:\n  securitySchemes:\n    apiKey:\n      type: apiKey\n      in: header\n      name: Ocp-Apim-Subscription-Key\n  responses:\n    BadRequest:\n      description: Ungültiger Request\n      content:\n        application/json:\n          schema: { $ref: '#/components/schemas/Error' }\n    Unauthorized:\n      description: Fehlender oder ungültiger Subscription Key\n      content:\n        application/json:\n          schema: { $ref: '#/components/schemas/Error' }\n  schemas:\n    Error:\n      type: object\n      properties:\n        error: { type: string }\n        message: { type: string }\n\n    SearchResult:\n      type: object\n      properties:\n        code: { type: string, example: 'E11.20' }\n        display: { type: string, example: 'Diabetes mellitus, Typ 2: Mit Nierenkomplikationen' }\n        score: { type: number, format: float }\n      required: [code, display]\n\n    SearchResponse:\n      type: object\n      properties:\n        input: { type: string }\n        count: { type: integer }\n        results:\n          type: array\n          items: { $ref: '#/components/schemas/SearchResult' }\n        codeSystem: { $ref: '#/components/schemas/CodeSystemInfo' }\n\n    ClassifyRequest:\n      type: object\n      description: Entweder `text` ODER (`file` und `fileContentType`) angeben.\n      properties:\n        text:\n          type: string\n          description: Freitext zur Klassifikation.\n          example: 'Diabetes mellitus Typ 2 mit Nephropathie, Arterielle Hypertonie Grad 2.'\n        file:\n          type: string\n          format: byte\n          description: Dateiinhalt als Base64 (PDF/Bild). Nur wenn kein `text` angegeben ist.\n        fileContentType:\n          type: string\n          description: MIME-Type der Datei, z.B. \"application/pdf\", \"image/png\".\n          example: application/pdf\n        languageHint:\n          type: string\n          default: de\n          description: Sprach-Hinweis (Default \"de\").\n\n    DocumentCode:\n      type: object\n      properties:\n        code: { type: string, example: 'I10.00' }\n        display: { type: string }\n        confidence:\n          type: number\n          format: float\n          minimum: 0\n          maximum: 1\n        role:\n          type: string\n          description: primary / secondary / comorbidity / finding\n        pages:\n          type: array\n          items: { type: integer }\n        verified: { type: boolean }\n        verificationMethod: { type: string }\n\n    PageClassification:\n      type: object\n      properties:\n        page: { type: integer }\n        codes:\n          type: array\n          items: { $ref: '#/components/schemas/DocumentCode' }\n\n    CodeSystemInfo:\n      type: object\n      properties:\n        system: { type: string, example: icd11 }\n        title: { type: string }\n        publisher: { type: string }\n        version: { type: string }\n        release: { type: string }\n\n    ClassifyResponse:\n      type: object\n      properties:\n        system: { type: string, example: icd11 }\n        pageCount: { type: integer }\n        documentCodes:\n          type: array\n          description: Über alle Seiten aggregierte, deduplizierte Codes.\n          items: { $ref: '#/components/schemas/DocumentCode' }\n        classifications:\n          type: array\n          description: Pro-Seiten-Klassifikation.\n          items: { $ref: '#/components/schemas/PageClassification' }\n        extractedTerms:\n          type: array\n          items: { type: string }\n        codeSystem: { $ref: '#/components/schemas/CodeSystemInfo' }\n\nsecurity:\n  - apiKey: []\n"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ApiManagement/service",
+              "apiVersion": "2024-05-01",
+              "name": "[format('apim-icd-{0}', parameters('nameSuffix'))]",
+              "location": "[parameters('location')]",
+              "sku": {
+                "name": "Consumption",
+                "capacity": 0
+              },
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "publisherEmail": "[parameters('publisherEmail')]",
+                "publisherName": "[parameters('publisherName')]"
+              }
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/namedValues",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('apim-icd-{0}', parameters('nameSuffix')), 'function-key')]",
+              "properties": {
+                "displayName": "function-key",
+                "secret": true,
+                "value": "[if(empty(parameters('functionKeyValue')), 'placeholder-set-by-deploy-script', parameters('functionKeyValue'))]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service', format('apim-icd-{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/backends",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('apim-icd-{0}', parameters('nameSuffix')), 'function-app-backend')]",
+              "properties": {
+                "protocol": "http",
+                "url": "[format('https://{0}/api', parameters('functionAppHostName'))]",
+                "description": "icd-classifier Function App"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service', format('apim-icd-{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/policies",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('apim-icd-{0}', parameters('nameSuffix')), 'policy')]",
+              "properties": {
+                "format": "rawxml",
+                "value": "<policies>\n  <inbound>\n    <set-backend-service backend-id=\"function-app-backend\" />\n    <set-header name=\"x-functions-key\" exists-action=\"override\">\n      <value>{{function-key}}</value>\n    </set-header>\n  </inbound>\n  <backend>\n    <forward-request />\n  </backend>\n  <outbound />\n  <on-error />\n</policies>\n"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service', format('apim-icd-{0}', parameters('nameSuffix')))]",
+                "[resourceId('Microsoft.ApiManagement/service/backends', format('apim-icd-{0}', parameters('nameSuffix')), 'function-app-backend')]",
+                "[resourceId('Microsoft.ApiManagement/service/namedValues', format('apim-icd-{0}', parameters('nameSuffix')), 'function-key')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('apim-icd-{0}', parameters('nameSuffix')), 'icd-classifier')]",
+              "properties": {
+                "displayName": "ICD Classifier",
+                "description": "ICD-10-GM und ICD-11 Klassifikation (Suche + Dokumentenanalyse)",
+                "state": "published",
+                "subscriptionRequired": true,
+                "approvalRequired": false,
+                "subscriptionsLimit": 100
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service', format('apim-icd-{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/apis",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('apim-icd-{0}', parameters('nameSuffix')), 'icd11')]",
+              "properties": {
+                "displayName": "ICD-11 Classifier",
+                "description": "WHO ICD-11 MMS — Suche und Dokumentenklassifikation (deutsch).",
+                "path": "icd11",
+                "protocols": [
+                  "https"
+                ],
+                "subscriptionRequired": true,
+                "format": "openapi",
+                "value": "[variables('openApiYaml')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service', format('apim-icd-{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/apis/policies",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}/{2}', format('apim-icd-{0}', parameters('nameSuffix')), 'icd11', 'policy')]",
+              "properties": {
+                "format": "rawxml",
+                "value": "<policies>\n  <inbound>\n    <base />\n    <set-query-parameter name=\"system\" exists-action=\"override\">\n      <value>icd11</value>\n    </set-query-parameter>\n  </inbound>\n  <backend><base /></backend>\n  <outbound><base /></outbound>\n  <on-error><base /></on-error>\n</policies>\n"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/apis', format('apim-icd-{0}', parameters('nameSuffix')), 'icd11')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/apis",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('apim-icd-{0}', parameters('nameSuffix')), 'icd10gm')]",
+              "properties": {
+                "displayName": "ICD-10-GM Classifier",
+                "description": "BfArM ICD-10-GM — Suche und Dokumentenklassifikation (deutsch).",
+                "path": "icd10gm",
+                "protocols": [
+                  "https"
+                ],
+                "subscriptionRequired": true,
+                "format": "openapi",
+                "value": "[variables('openApiYaml')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service', format('apim-icd-{0}', parameters('nameSuffix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/apis/policies",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}/{2}', format('apim-icd-{0}', parameters('nameSuffix')), 'icd10gm', 'policy')]",
+              "properties": {
+                "format": "rawxml",
+                "value": "<policies>\n  <inbound>\n    <base />\n    <set-query-parameter name=\"system\" exists-action=\"override\">\n      <value>icd10gm</value>\n    </set-query-parameter>\n  </inbound>\n  <backend><base /></backend>\n  <outbound><base /></outbound>\n  <on-error><base /></on-error>\n</policies>\n"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/apis', format('apim-icd-{0}', parameters('nameSuffix')), 'icd10gm')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/apis",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}/{2}', format('apim-icd-{0}', parameters('nameSuffix')), 'icd-classifier', 'icd11')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/apis', format('apim-icd-{0}', parameters('nameSuffix')), 'icd11')]",
+                "[resourceId('Microsoft.ApiManagement/service/products', format('apim-icd-{0}', parameters('nameSuffix')), 'icd-classifier')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/products/apis",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}/{2}', format('apim-icd-{0}', parameters('nameSuffix')), 'icd-classifier', 'icd10gm')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service/apis', format('apim-icd-{0}', parameters('nameSuffix')), 'icd10gm')]",
+                "[resourceId('Microsoft.ApiManagement/service/products', format('apim-icd-{0}', parameters('nameSuffix')), 'icd-classifier')]"
+              ]
+            },
+            {
+              "type": "Microsoft.ApiManagement/service/subscriptions",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('apim-icd-{0}', parameters('nameSuffix')), 'icd-classifier-default')]",
+              "properties": {
+                "displayName": "ICD Classifier – Default",
+                "scope": "[resourceId('Microsoft.ApiManagement/service/products', format('apim-icd-{0}', parameters('nameSuffix')), 'icd-classifier')]",
+                "state": "active",
+                "allowTracing": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ApiManagement/service', format('apim-icd-{0}', parameters('nameSuffix')))]",
+                "[resourceId('Microsoft.ApiManagement/service/products', format('apim-icd-{0}', parameters('nameSuffix')), 'icd-classifier')]",
+                "[resourceId('Microsoft.ApiManagement/service/products/apis', format('apim-icd-{0}', parameters('nameSuffix')), 'icd-classifier', 'icd10gm')]",
+                "[resourceId('Microsoft.ApiManagement/service/products/apis', format('apim-icd-{0}', parameters('nameSuffix')), 'icd-classifier', 'icd11')]"
+              ]
+            }
+          ],
+          "outputs": {
+            "apimName": {
+              "type": "string",
+              "value": "[format('apim-icd-{0}', parameters('nameSuffix'))]"
+            },
+            "gatewayUrl": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ApiManagement/service', format('apim-icd-{0}', parameters('nameSuffix'))), '2024-05-01').gatewayUrl]"
+            },
+            "icd11OpenApiUrl": {
+              "type": "string",
+              "value": "[format('{0}/icd11?export=true&format=openapi%2Bjson', reference(resourceId('Microsoft.ApiManagement/service', format('apim-icd-{0}', parameters('nameSuffix'))), '2024-05-01').gatewayUrl)]"
+            },
+            "icd10gmOpenApiUrl": {
+              "type": "string",
+              "value": "[format('{0}/icd10gm?export=true&format=openapi%2Bjson', reference(resourceId('Microsoft.ApiManagement/service', format('apim-icd-{0}', parameters('nameSuffix'))), '2024-05-01').gatewayUrl)]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('core-{0}', parameters('nameSuffix')))]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "resourceGroupName": {
+      "type": "string",
+      "value": "[parameters('resourceGroupName')]"
+    },
+    "functionAppName": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('core-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.functionAppName.value]"
+    },
+    "functionAppUrl": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('core-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.functionAppUrl.value]"
+    },
+    "visionEndpoint": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('core-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.visionEndpoint.value]"
+    },
+    "llmEndpoint": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('core-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.llmEndpoint.value]"
+    },
+    "llmProvider": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('core-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.llmProvider.value]"
+    },
+    "llmReasoningDeployment": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('core-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.llmReasoningDeployment.value]"
+    },
+    "llmFastDeployment": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('core-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.llmFastDeployment.value]"
+    },
+    "llmReasoningModelLabel": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('core-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.llmReasoningModelLabel.value]"
+    },
+    "llmFastModelLabel": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('core-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.llmFastModelLabel.value]"
+    },
+    "apimName": {
+      "type": "string",
+      "value": "[if(parameters('deployApim'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('apim-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.apimName.value, '')]"
+    },
+    "apimGatewayUrl": {
+      "type": "string",
+      "value": "[if(parameters('deployApim'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('apim-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.gatewayUrl.value, '')]"
+    }
+  }
+}

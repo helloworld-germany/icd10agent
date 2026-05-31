@@ -1,0 +1,314 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2021-09-09/uiFormDefinition.schema.json",
+  "view": {
+    "kind": "Form",
+    "properties": {
+      "title": "ICD-Classifier — 1-Click Deployment",
+      "steps": [
+        {
+          "name": "basics",
+          "label": "Grundlagen",
+          "elements": [
+            {
+              "name": "intro",
+              "type": "Microsoft.Common.InfoBox",
+              "visible": true,
+              "options": {
+                "icon": "Info",
+                "text": "Diese Deployment legt eine **Azure Function App** zur ICD-10-GM / ICD-11-Klassifikation klinischer Texte und PDFs an. Alles läuft in **Ihrem Tenant**, ausschließlich über **Managed Identity + RBAC**, Storage hängt an einem dedizierten **VNet mit Private Endpoints**. Vor dem Klick auf *Create* bitte sicherstellen: Owner-Rechte auf der Subscription + **DataZoneStandard-Quota** für das gewählte LLM-Profil in der gewählten Region (germanywestcentral / switzerlandnorth / swedencentral sind verifiziert)."
+              }
+            },
+            {
+              "name": "resourceScope",
+              "type": "Microsoft.Common.ResourceScope",
+              "label": {
+                "subscription": "Subscription",
+                "location": "Region"
+              },
+              "location": {
+                "resourceTypes": [
+                  "Microsoft.Web/sites",
+                  "Microsoft.CognitiveServices/accounts",
+                  "Microsoft.ApiManagement/service"
+                ],
+                "allowedValues": [
+                  "germanywestcentral",
+                  "switzerlandnorth",
+                  "swedencentral",
+                  "westeurope",
+                  "northeurope"
+                ]
+              }
+            },
+            {
+              "name": "resourceGroupName",
+              "type": "Microsoft.Common.TextBox",
+              "label": "Name der neuen Resource Group",
+              "defaultValue": "rg-icd-classifier",
+              "toolTip": "Wird neu angelegt. Muss subscription-weit eindeutig sein.",
+              "constraints": {
+                "required": true,
+                "regex": "^[a-zA-Z0-9-_().]{1,90}$",
+                "validationMessage": "1-90 Zeichen, a-z A-Z 0-9 - _ . ( ) erlaubt."
+              }
+            },
+            {
+              "name": "nameSuffix",
+              "type": "Microsoft.Common.TextBox",
+              "label": "Namens-Suffix",
+              "defaultValue": "icd01",
+              "toolTip": "3-8 Zeichen (lowercase, a-z 0-9). Wird an alle Ressourcen angehängt (z. B. func-icd-<suffix>).",
+              "constraints": {
+                "required": true,
+                "regex": "^[a-z0-9]{3,8}$",
+                "validationMessage": "3-8 Zeichen, nur lowercase Buchstaben + Ziffern."
+              }
+            },
+            {
+              "name": "defaultSystem",
+              "type": "Microsoft.Common.DropDown",
+              "label": "Default-Klassifikationssystem",
+              "defaultValue": "ICD-10-GM (Deutschland, BfArM)",
+              "toolTip": "Welches System bei Requests ohne ?system= verwendet wird.",
+              "constraints": {
+                "required": true,
+                "allowedValues": [
+                  { "label": "ICD-10-GM (Deutschland, BfArM)", "value": "icd10gm" },
+                  { "label": "ICD-11 MMS (WHO)",                "value": "icd11" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "llm",
+          "label": "LLM-Profil",
+          "elements": [
+            {
+              "name": "llmInfo",
+              "type": "Microsoft.Common.InfoBox",
+              "visible": true,
+              "options": {
+                "icon": "Info",
+                "text": "Das Deployment legt ein **eigenes Azure-AI-Foundry-Konto** (kind=AIServices) in Ihrem Tenant an und hostet darin sowohl Azure-OpenAI- als auch Mistral-Modelle hinter dem gleichen `/openai/v1`-Endpoint. Wählen Sie ein **Profil** statt einzelner Modelle — das hält Quota, SKUs und Versionen konsistent. Quota beantragen: https://learn.microsoft.com/azure/ai-services/openai/quotas-limits"
+              }
+            },
+            {
+              "name": "llmProfile",
+              "type": "Microsoft.Common.DropDown",
+              "label": "LLM-Profil",
+              "defaultValue": "aoai-eu — gpt-5.4 + gpt-4.1-mini (beide EU-DataZone) — empfohlen",
+              "toolTip": "aoai-eu = 100% EU-DataZone, beste Qualität. aoai-eu-cost = günstigerer fast-Tier (Global). mistral-eu = Single-Model EU-Provider. mistral-eu-cost = Mistral + Small-Global.",
+              "constraints": {
+                "required": true,
+                "allowedValues": [
+                  { "label": "aoai-eu — gpt-5.4 + gpt-4.1-mini (beide EU-DataZone) — empfohlen",        "value": "aoai-eu" },
+                  { "label": "aoai-eu-cost — gpt-5.4 (EU-DataZone) + gpt-5.4-mini (Global)",            "value": "aoai-eu-cost" },
+                  { "label": "mistral-eu — Mistral-Large-3 (EU-DataZone) only",                         "value": "mistral-eu" },
+                  { "label": "mistral-eu-cost — Mistral-Large-3 (EU-DataZone) + mistral-small (Global)", "value": "mistral-eu-cost" }
+                ]
+              }
+            },
+            {
+              "name": "llmReasoningCapacity",
+              "type": "Microsoft.Common.Slider",
+              "label": "Reasoning-Kapazität (TPM in Tausend)",
+              "defaultValue": 100,
+              "min": 1,
+              "max": 1000,
+              "subLabel": "k TPM",
+              "toolTip": "TPM für das Reasoning-Modell. 100k reicht für moderate Klinik-Workloads. Bei Mistral-Profilen wird der Wert automatisch auf das Account-Quota (typ. 20k TPM, Mai 2026) geklemmt — dann ggf. Quota erhöhen lassen."
+            },
+            {
+              "name": "llmFastCapacity",
+              "type": "Microsoft.Common.Slider",
+              "label": "Fast-Kapazität (TPM in Tausend)",
+              "defaultValue": 50,
+              "min": 1,
+              "max": 1000,
+              "subLabel": "k TPM",
+              "toolTip": "TPM für das Fast-Modell (Term-Extraktion + Verifier). Bei mistral-eu ungenutzt (single model). Bei mistral-eu-cost wird der Wert auf das Sub-Quota-Limit (~1k TPM, Mai 2026) geklemmt."
+            },
+            {
+              "name": "reasoningEffort",
+              "type": "Microsoft.Common.DropDown",
+              "label": "Reasoning-Effort",
+              "defaultValue": "medium",
+              "toolTip": "Nur für AOAI-Reasoning-Modelle (gpt-5.x). Bei Mistral-Profilen ignoriert.",
+              "constraints": {
+                "required": true,
+                "allowedValues": [
+                  { "label": "low",    "value": "low" },
+                  { "label": "medium", "value": "medium" },
+                  { "label": "high",   "value": "high" },
+                  { "label": "(model default)", "value": "" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "icd11",
+          "label": "ICD-11 (WHO) — optional",
+          "elements": [
+            {
+              "name": "whoInfo",
+              "type": "Microsoft.Common.InfoBox",
+              "visible": true,
+              "options": {
+                "icon": "Info",
+                "text": "Nur erforderlich, wenn Sie die **ICD-11-Klassifikation** nutzen möchten. Für reinen ICD-10-GM-Betrieb beide Felder leer lassen. Account kostenlos: https://icd.who.int/icdapi"
+              }
+            },
+            {
+              "name": "whoIcdClientId",
+              "type": "Microsoft.Common.TextBox",
+              "label": "WHO ICD-API Client ID",
+              "defaultValue": "",
+              "toolTip": "Leer lassen wenn nur ICD-10-GM genutzt wird.",
+              "constraints": { "required": false }
+            },
+            {
+              "name": "whoIcdClientSecret",
+              "type": "Microsoft.Common.PasswordBox",
+              "label": {
+                "password": "WHO ICD-API Client Secret",
+                "confirmPassword": "Bestätigen"
+              },
+              "toolTip": "Wird als SecureString an die Deployment übergeben.",
+              "options": { "hideConfirmation": true },
+              "constraints": { "required": false }
+            },
+            {
+              "name": "whoIcdLanguage",
+              "type": "Microsoft.Common.DropDown",
+              "label": "Sprache",
+              "defaultValue": "Deutsch (de)",
+              "constraints": {
+                "required": true,
+                "allowedValues": [
+                  { "label": "Deutsch (de)", "value": "de" },
+                  { "label": "English (en)", "value": "en" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "byok",
+          "label": "BYOK (optional)",
+          "elements": [
+            {
+              "name": "byokInfo",
+              "type": "Microsoft.Common.InfoBox",
+              "visible": true,
+              "options": {
+                "icon": "Info",
+                "text": "**Bring Your Own Key** — statt die WHO-Credentials direkt einzubetten, geben Sie hier Key-Vault-Secret-URIs an. Die Function App liest die Werte dann zur Laufzeit per `@Microsoft.KeyVault(SecretUri=...)`. **Voraussetzung:** Die Managed Identity der Function App benötigt **nach** dem Deployment die Rolle `Key Vault Secrets User` auf dem Key Vault. Anleitung im README."
+              }
+            },
+            {
+              "name": "whoIcdClientIdSecretUri",
+              "type": "Microsoft.Common.TextBox",
+              "label": "Key Vault Secret URI — WHO Client ID",
+              "defaultValue": "",
+              "toolTip": "Volle URI, z. B. https://my-kv.vault.azure.net/secrets/who-client-id/abcdef123",
+              "constraints": {
+                "required": false,
+                "regex": "^$|^https://[a-zA-Z0-9-]+\\.vault\\.azure\\.net/secrets/[a-zA-Z0-9-]+(/[a-zA-Z0-9]+)?$",
+                "validationMessage": "Leer lassen oder vollständige Key-Vault-Secret-URI."
+              }
+            },
+            {
+              "name": "whoIcdClientSecretSecretUri",
+              "type": "Microsoft.Common.TextBox",
+              "label": "Key Vault Secret URI — WHO Client Secret",
+              "defaultValue": "",
+              "constraints": {
+                "required": false,
+                "regex": "^$|^https://[a-zA-Z0-9-]+\\.vault\\.azure\\.net/secrets/[a-zA-Z0-9-]+(/[a-zA-Z0-9]+)?$",
+                "validationMessage": "Leer lassen oder vollständige Key-Vault-Secret-URI."
+              }
+            }
+          ]
+        },
+        {
+          "name": "code",
+          "label": "Code & APIM",
+          "elements": [
+            {
+              "name": "codeInfo",
+              "type": "Microsoft.Common.InfoBox",
+              "visible": true,
+              "options": {
+                "icon": "Info",
+                "text": "Die Function App wird angelegt — der **Code** wird hier optional als ZIP-URL gemountet (`WEBSITE_RUN_FROM_PACKAGE`). Default ist das aktuelle GitHub-Release. Feld leeren und Code später per `deploy.ps1 -SkipInfra` publishen, falls Sie eine eigene Version deployen möchten."
+              }
+            },
+            {
+              "name": "functionPackageUrl",
+              "type": "Microsoft.Common.TextBox",
+              "label": "Function-Package URL (ZIP)",
+              "defaultValue": "https://github.com/helloworld-germany/icd10agent/releases/latest/download/icd10agent.zip",
+              "toolTip": "Public HTTPS-URL auf ein Function-App ZIP. Leer = später per deploy.ps1 publishen.",
+              "constraints": {
+                "required": false,
+                "regex": "^$|^https://.+\\.zip(\\?.*)?$",
+                "validationMessage": "Leer lassen oder gültige HTTPS-URL die auf .zip endet."
+              }
+            },
+            {
+              "name": "deployApim",
+              "type": "Microsoft.Common.CheckBox",
+              "label": "APIM-Fassade für Power Apps / Copilot Studio deployen",
+              "toolTip": "Optional. APIM Consumption-Tier vor der Function App — empfohlen für Low-Code-Integration."
+            },
+            {
+              "name": "apimPublisherEmail",
+              "type": "Microsoft.Common.TextBox",
+              "label": "APIM Publisher E-Mail",
+              "defaultValue": "",
+              "toolTip": "Pflicht wenn APIM aktiviert.",
+              "constraints": {
+                "required": false,
+                "regex": "^$|^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
+              },
+              "visible": "[steps('code').deployApim]"
+            },
+            {
+              "name": "apimPublisherName",
+              "type": "Microsoft.Common.TextBox",
+              "label": "APIM Publisher Name",
+              "defaultValue": "ICD Classifier",
+              "visible": "[steps('code').deployApim]"
+            }
+          ]
+        }
+      ]
+    },
+    "outputs": {
+      "kind": "Subscription",
+      "location": "[steps('basics').resourceScope.location.name]",
+      "subscriptionId": "[steps('basics').resourceScope.subscription.id]",
+      "parameters": {
+        "resourceGroupName": "[steps('basics').resourceGroupName]",
+        "location": "[steps('basics').resourceScope.location.name]",
+        "nameSuffix": "[steps('basics').nameSuffix]",
+        "defaultSystem": "[steps('basics').defaultSystem]",
+        "llmProfile": "[steps('llm').llmProfile]",
+        "llmReasoningCapacity": "[int(steps('llm').llmReasoningCapacity)]",
+        "llmFastCapacity": "[int(steps('llm').llmFastCapacity)]",
+        "reasoningEffort": "[steps('llm').reasoningEffort]",
+        "whoIcdClientId": "[steps('icd11').whoIcdClientId]",
+        "whoIcdClientSecret": "[steps('icd11').whoIcdClientSecret]",
+        "whoIcdLanguage": "[steps('icd11').whoIcdLanguage]",
+        "whoIcdClientIdSecretUri": "[steps('byok').whoIcdClientIdSecretUri]",
+        "whoIcdClientSecretSecretUri": "[steps('byok').whoIcdClientSecretSecretUri]",
+        "functionPackageUrl": "[steps('code').functionPackageUrl]",
+        "deployApim": "[steps('code').deployApim]",
+        "apimPublisherEmail": "[steps('code').apimPublisherEmail]",
+        "apimPublisherName": "[steps('code').apimPublisherName]"
+      }
+    }
+  }
+}

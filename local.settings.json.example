@@ -1,0 +1,41 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "FUNCTIONS_EXTENSION_VERSION": "~4",
+
+    "DEFAULT_SYSTEM": "icd10gm",
+
+    "ICD10GM_VALUESET_URL": "https://terminologien.bfarm.de/rendering_data/ValueSet-icd10gm-terminale-codes-2026.json",
+
+    "WHO_ICD_CLIENT_ID": "",
+    "WHO_ICD_CLIENT_SECRET": "",
+    "WHO_ICD_RELEASE": "2026-01",
+    "WHO_ICD_LANGUAGE": "de",
+    "WHO_ICD_TOKEN_URL": "https://icdaccessmanagement.who.int/connect/token",
+    "WHO_ICD_API_BASE_URL": "https://id.who.int",
+
+    "AZURE_OPENAI_ENDPOINT": "",
+    "AZURE_OPENAI_BASE_URL": "",
+    "AZURE_OPENAI_DEPLOYMENT": "",
+    "AZURE_OPENAI_DEPLOYMENT_REASONING": "",
+    "AZURE_OPENAI_DEPLOYMENT_FAST": "",
+    "AZURE_OPENAI_REASONING_EFFORT_REASONING": "medium",
+    "AZURE_OPENAI_REASONING_EFFORT_FAST": "",
+    "AZURE_OPENAI_AUTH_MODE": "rbac",
+
+    "AZURE_MISTRAL_ENDPOINT": "",
+    "AZURE_MISTRAL_BASE_URL": "",
+    "AZURE_MISTRAL_DEPLOYMENT": "",
+    "AZURE_MISTRAL_DEPLOYMENT_REASONING": "",
+    "AZURE_MISTRAL_DEPLOYMENT_FAST": "",
+    "AZURE_MISTRAL_AUTH_MODE": "rbac",
+
+    "AZURE_VISION_ENDPOINT": ""
+  },
+  "Host": {
+    "CORS": "*",
+    "CORSCredentials": false
+  }
+}

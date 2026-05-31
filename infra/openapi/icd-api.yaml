@@ -1,0 +1,176 @@
+openapi: 3.0.3
+info:
+  title: ICD Classifier
+  version: '1.0'
+  description: |
+    Klassifiziert klinischen Freitext oder hochgeladene Dokumente (PDF/Bild) gegen ICD-Codes.
+servers:
+  - url: https://example.invalid
+paths:
+  /search:
+    get:
+      operationId: SearchCodes
+      summary: ICD-Codes per Volltext suchen
+      description: Liefert die besten Treffer zu einem Suchtext (Diagnosename, Stichwort, Code-Präfix).
+      parameters:
+        - in: query
+          name: text
+          required: true
+          description: Suchtext, z.B. "Diabetes Typ 2" oder "I21".
+          schema: { type: string }
+        - in: query
+          name: limit
+          required: false
+          description: Maximale Trefferanzahl (1-50, Default 10).
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+      responses:
+        '200':
+          description: Suchergebnisse
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /classify:
+    post:
+      operationId: Classify
+      summary: Freitext oder Dokument klassifizieren
+      description: |
+        Genau eines der folgenden Felder im Body angeben:
+        * `text` — Freitext zur Klassifikation (Arztbrief, Befund, Diagnoseliste).
+        * `file` + `fileContentType` — Dokument als Base64 (PDF, PNG, JPG, TIFF, BMP).
+        Liefert strukturierte Codes mit Display, Confidence, Rolle (Hauptdiagnose/Komorbidität/…), Seite und Verifizierungs-Flag.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClassifyRequest' }
+      responses:
+        '200':
+          description: Klassifikationsergebnis
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClassifyResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: Ocp-Apim-Subscription-Key
+  responses:
+    BadRequest:
+      description: Ungültiger Request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Fehlender oder ungültiger Subscription Key
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        message: { type: string }
+
+    SearchResult:
+      type: object
+      properties:
+        code: { type: string, example: 'E11.20' }
+        display: { type: string, example: 'Diabetes mellitus, Typ 2: Mit Nierenkomplikationen' }
+        score: { type: number, format: float }
+      required: [code, display]
+
+    SearchResponse:
+      type: object
+      properties:
+        input: { type: string }
+        count: { type: integer }
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/SearchResult' }
+        codeSystem: { $ref: '#/components/schemas/CodeSystemInfo' }
+
+    ClassifyRequest:
+      type: object
+      description: Entweder `text` ODER (`file` und `fileContentType`) angeben.
+      properties:
+        text:
+          type: string
+          description: Freitext zur Klassifikation.
+          example: 'Diabetes mellitus Typ 2 mit Nephropathie, Arterielle Hypertonie Grad 2.'
+        file:
+          type: string
+          format: byte
+          description: Dateiinhalt als Base64 (PDF/Bild). Nur wenn kein `text` angegeben ist.
+        fileContentType:
+          type: string
+          description: MIME-Type der Datei, z.B. "application/pdf", "image/png".
+          example: application/pdf
+        languageHint:
+          type: string
+          default: de
+          description: Sprach-Hinweis (Default "de").
+
+    DocumentCode:
+      type: object
+      properties:
+        code: { type: string, example: 'I10.00' }
+        display: { type: string }
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        role:
+          type: string
+          description: primary / secondary / comorbidity / finding
+        pages:
+          type: array
+          items: { type: integer }
+        verified: { type: boolean }
+        verificationMethod: { type: string }
+
+    PageClassification:
+      type: object
+      properties:
+        page: { type: integer }
+        codes:
+          type: array
+          items: { $ref: '#/components/schemas/DocumentCode' }
+
+    CodeSystemInfo:
+      type: object
+      properties:
+        system: { type: string, example: icd11 }
+        title: { type: string }
+        publisher: { type: string }
+        version: { type: string }
+        release: { type: string }
+
+    ClassifyResponse:
+      type: object
+      properties:
+        system: { type: string, example: icd11 }
+        pageCount: { type: integer }
+        documentCodes:
+          type: array
+          description: Über alle Seiten aggregierte, deduplizierte Codes.
+          items: { $ref: '#/components/schemas/DocumentCode' }
+        classifications:
+          type: array
+          description: Pro-Seiten-Klassifikation.
+          items: { $ref: '#/components/schemas/PageClassification' }
+        extractedTerms:
+          type: array
+          items: { type: string }
+        codeSystem: { $ref: '#/components/schemas/CodeSystemInfo' }
+
+security:
+  - apiKey: []

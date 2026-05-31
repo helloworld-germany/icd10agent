@@ -1,0 +1,15 @@
+{
+  "name": "icd-classifier",
+  "version": "0.1.0",
+  "description": "Azure Function App: ICD-10-GM (BfArM) and ICD-11 (WHO ICD-API) classifier with dual-call GPT verification",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "func start",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.4.1"
+  }
+}

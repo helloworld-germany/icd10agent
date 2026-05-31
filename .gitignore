@@ -1,0 +1,54 @@
+bin
+obj
+csx
+.vs
+edge
+Publish
+
+*.user
+*.suo
+*.cscfg
+*.Cache
+project.lock.json
+
+/packages
+/TestResults
+
+/tools/NuGet.exe
+/App_Data
+/secrets
+/data
+.secrets
+appsettings.json
+local.settings.json
+
+node_modules
+dist
+
+# Azure Functions artifacts
+bin
+obj
+appsettings.json
+local.settings.json
+.python_packages
+
+# VS Code
+.vscode/
+
+# Build / deploy
+*.zip
+deploy.zip
+
+# Caches
+.icd-cache/
+
+# Eval artifacts
+tests/eval/*.raw.txt
+tests/eval/*.draft.jsonl
+tests/eval/reports/
+
+# Interne Test-/Debug-Skripte (hardcoded Ressourcennamen)
+scripts/debug-classify.ps1
+scripts/test-apim.ps1
+scripts/test-classify.ps1
+build/
