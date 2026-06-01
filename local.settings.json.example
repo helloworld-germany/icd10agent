@@ -7,7 +7,7 @@
 
     "DEFAULT_SYSTEM": "icd10gm",
 
-    "ICD10GM_VALUESET_URL": "https://terminologien.bfarm.de/rendering_data/ValueSet-icd10gm-terminale-codes-2026.json",
+    "ICD10GM_CODESYSTEM_URL": "https://terminologien.bfarm.de/rendering_data/CodeSystem-icd10gm-2026.json",
 
     "WHO_ICD_CLIENT_ID": "",
     "WHO_ICD_CLIENT_SECRET": "",

@@ -127,7 +127,27 @@ async function gatherCandidates(cfgFast, provider, pages, systemKey, { perTerm =
     }
   }
 
-  // Pass 3 — sibling expansion: for every code already retrieved, pull in all
+  // Pass 3 — Kreuz-Stern (dagger/aster) companion expansion (ICD-10-GM only):
+  // For every dagger (†) code already retrieved, query the index with that
+  // code's own display text. The BfArM convention names manifestations using
+  // a wording pattern aligned with the etiology (e.g. M51.1 "Bandscheiben-
+  // schäden mit Radikulopathie" → G55.1 "Kompression von Nervenwurzeln ... bei
+  // Bandscheibenschäden"). This surfaces aster (*) partner candidates that
+  // the term-level passes may have missed because the source document used
+  // clinical jargon ("Radikulopathie") instead of the formal aster wording
+  // ("Kompression von Nervenwurzeln"). Runs BEFORE the generic stem expansion
+  // so aster partners get priority slots when the candidate pool fills up.
+  // Generic, not example-driven.
+  const daggerSeeds = [...seen.values()].filter(c => c.usage === 'dagger');
+  for (const c of daggerSeeds) {
+    if (seen.size >= maxTotal) break;
+    try {
+      const { results } = await provider.search(c.display, perTerm);
+      addResults(results);
+    } catch (err) { console.warn(`[gatherCandidates/dagger-companion "${c.code}"] ${err.message}`); }
+  }
+
+  // Pass 4 — sibling expansion: for every code already retrieved, pull in all
   // siblings sharing the 3-char stem. This compensates for the systematic miss
   // mode where the right *category* is found but the wrong *suffix* (e.g.
   // I63.5 vs I63.8, K80.00 vs K80.20). Pure retrieval move, no semantic bias.
@@ -148,16 +168,36 @@ async function gatherCandidates(cfgFast, provider, pages, systemKey, { perTerm =
 }
 
 function buildAllowedList(candidates) {
-  return candidates.map(c => `${c.code} — ${c.display}`).join('\n');
+  // If any candidate carries Properties (BfArM CodeSystem path), render the
+  // compact markers as a bracketed prefix; otherwise fall back to the legacy
+  // "code — display" form (ValueSet path / ICD-11).
+  return candidates.map(c => {
+    const marker = c.markers ? ` [${c.markers}]` : '';
+    return `${c.code}${marker} — ${c.display}`;
+  }).join('\n');
+}
+
+// Return the provider's rulebook only when it is meaningful for this run:
+// - provider exposes getRulebook(),
+// - upstream payload actually carried the BfArM properties (meta.hasProperties
+//   is true) OR at least one candidate ended up with markers/usage/para301.
+// Otherwise the rule text would reference markers the candidate list does not
+// actually contain, which is worse than not showing the rulebook at all.
+function pickRulebook(provider, meta, candidates) {
+  if (typeof provider.getRulebook !== 'function') return null;
+  const propsAvailable = !!(meta && meta.hasProperties) ||
+    candidates.some(c => c.markers || c.usage || c.para301);
+  if (!propsAvailable) return null;
+  return provider.getRulebook();
 }
 
 // ---------------------------------------------------------------------------
 // Prompts — multi-code per page
 // ---------------------------------------------------------------------------
 
-function systemPrompt(systemKey, allowedList) {
+function systemPrompt(systemKey, allowedList, rulebook) {
   const sysName = systemKey === 'icd11' ? 'ICD-11 (WHO MMS)' : 'ICD-10-GM (BfArM)';
-  return [
+  const lines = [
     `Du bist medizinischer Klassifikator für ${sysName}.`,
     'Aufgabe: Extrahiere ALLE relevanten Diagnosen/Befunde aus dem Dokument.',
     'Es können MEHRERE Codes pro Seite vorkommen (Haupt- und Nebendiagnosen, Komorbiditäten, dokumentierte Befunde).',
@@ -170,10 +210,12 @@ function systemPrompt(systemKey, allowedList) {
     ']}]}',
     'Wenn eine Seite keine kodierbaren Inhalte hat, gib für sie `"codes": []` zurück.',
     'Setze maximal EINEN Code pro Seite auf role="primary". Duplikate vermeiden.',
-    '',
-    'ERLAUBTE CODES:',
-    allowedList,
-  ].join('\n');
+  ];
+  if (rulebook) {
+    lines.push('', rulebook);
+  }
+  lines.push('', 'ERLAUBTE CODES:', allowedList);
+  return lines.join('\n');
 }
 
 function userPromptContextAware(pages) {
@@ -458,7 +500,7 @@ async function classifyPages(pages, { system = 'icd10gm', languageHint = 'de' } 
     };
   }
 
-  const sys = systemPrompt(provider.key, buildAllowedList(candidates));
+  const sys = systemPrompt(provider.key, buildAllowedList(candidates), pickRulebook(provider, meta, candidates));
 
   const [resA, resB] = await Promise.all([
     callChat(cfgReasoning, [

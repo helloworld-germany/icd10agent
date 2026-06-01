@@ -162,4 +162,11 @@ async function listAll() {
   return { meta: meta(), count: null, results: null, note: 'ICD-11 bulk listing not supported; use search().' };
 }
 
-module.exports = { search, getCode, listAll };
+// ICD-11 uses a different post-coordination model (no Kreuz-Stern, no Para301
+// equivalent). We don't currently inject a hardrule block for ICD-11 to avoid
+// applying ICD-10-GM-specific German rules to it. Return null.
+function getRulebook() {
+  return null;
+}
+
+module.exports = { search, getCode, listAll, getRulebook };
