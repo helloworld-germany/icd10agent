@@ -226,3 +226,7 @@ if ($apimExists) {
     Write-Warning "Subscription key konnte nicht gelesen werden — bitte im Portal unter APIM > Subscriptions abrufen."
   }
 }
+
+# A missing optional APIM leaves `az apim show` with a non-zero native exit
+# code even though the requested Function deployment succeeded.
+$global:LASTEXITCODE = 0
