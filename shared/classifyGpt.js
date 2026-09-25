@@ -209,7 +209,7 @@ function systemPrompt(systemKey, allowedList, rulebook) {
     '   "reasoning":"<kurz, de>"}',
     ']}]}',
     'Wenn eine Seite keine kodierbaren Inhalte hat, gib für sie `"codes": []` zurück.',
-    'Setze maximal EINEN Code pro Seite auf role="primary". Duplikate vermeiden.',
+    'Setze maximal EINEN Code pro Seite auf role="primary". Duplikate vermeiden. Achte darauf, dass Verneinungen korrekt berücksichtigt werden, also nicht fälschlicherweise positive Codes vergeben.',
   ];
   if (rulebook) {
     lines.push('', rulebook);
@@ -400,7 +400,7 @@ async function verifyClassifications(cfg, pages, perPage, systemKey, { onlyUnver
     `Du bist medizinischer Auditor für ${sysName}.`,
     'Aufgabe: Prüfe für jede vorgeschlagene (Seite, Code)-Zuordnung, ob sie durch den Originaltext gedeckt ist.',
     'Eine Zuordnung ist gedeckt, wenn die Diagnose/der Befund auf der Seite explizit genannt oder zwingend implizit ableitbar ist (z.B. aus dokumentiertem BMI, Stadium, Histologie).',
-    'Sie ist NICHT gedeckt bei Verdacht ohne Bestätigung, bei Differentialdiagnosen ohne Aussage, oder wenn der Code thematisch passt aber im Text nicht steht.',
+    'Sie ist NICHT gedeckt bei Verdacht ohne Bestätigung, bei Differentialdiagnosen ohne Aussage, oder wenn der Code thematisch passt aber im Text nicht belegt oder verneint wird.',
     'Antwortformat: JSON {"verified":[{"page":<int>,"code":"<code>","evidence":"<wortgetreues Zitat aus dem Text>","confidence":<0..1>}]}',
     'Gib NUR die gedeckten Zuordnungen zurück. Keine Erfindungen, keine neuen Codes.',
   ].join('\n');

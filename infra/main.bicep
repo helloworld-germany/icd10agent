@@ -59,8 +59,8 @@ param whoIcdRelease string = '2026-01'
 @description('WHO ICD-11 language (ISO 639-1).')
 param whoIcdLanguage string = 'de'
 
-@description('BfArM ICD-10-GM ValueSet JSON URL.')
-param icd10gmValueSetUrl string = 'https://terminologien.bfarm.de/rendering_data/ValueSet-icd10gm-terminale-codes-2026.json'
+@description('BfArM ICD-10-GM CodeSystem JSON URL.')
+param icd10gmValueSetUrl string = 'https://terminologien.bfarm.de/rendering_data/CodeSystem-icd10gm-2026.json'
 
 @description('Default classification system for requests without ?system=.')
 @allowed(['icd10gm', 'icd11'])

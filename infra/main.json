@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.43.8.12551",
-      "templateHash": "15460955688564852187"
+      "version": "0.47.16.16243",
+      "templateHash": "6806380797845551305"
     }
   },
   "parameters": {
@@ -109,9 +109,9 @@
     },
     "icd10gmValueSetUrl": {
       "type": "string",
-      "defaultValue": "https://terminologien.bfarm.de/rendering_data/ValueSet-icd10gm-terminale-codes-2026.json",
+      "defaultValue": "https://terminologien.bfarm.de/rendering_data/CodeSystem-icd10gm-2026.json",
       "metadata": {
-        "description": "BfArM ICD-10-GM ValueSet JSON URL."
+        "description": "BfArM ICD-10-GM CodeSystem JSON URL."
       }
     },
     "defaultSystem": {
@@ -241,8 +241,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "14457002691021561321"
+              "version": "0.47.16.16243",
+              "templateHash": "11561195359548905681"
             }
           },
           "parameters": {
@@ -285,7 +285,7 @@
             },
             "icd10gmValueSetUrl": {
               "type": "string",
-              "defaultValue": "https://terminologien.bfarm.de/rendering_data/ValueSet-icd10gm-terminale-codes-2026.json"
+              "defaultValue": "https://terminologien.bfarm.de/rendering_data/CodeSystem-icd10gm-2026.json"
             },
             "defaultSystem": {
               "type": "string",
@@ -493,7 +493,7 @@
                   "linuxFxVersion": "Node|22",
                   "ftpsState": "Disabled",
                   "minTlsVersion": "1.2",
-                  "appSettings": "[union(createArray(createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', 'node'), createObject('name', 'WEBSITE_NODE_DEFAULT_VERSION', 'value', parameters('nodeVersion')), createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', reference(resourceId('Microsoft.Insights/components', format('ai-icd-{0}-insights', parameters('nameSuffix'))), '2020-02-02').ConnectionString), createObject('name', 'AzureWebJobsStorage__accountName', 'value', format('sticd{0}', parameters('nameSuffix'))), createObject('name', 'WEBSITE_CONTENTOVERVNET', 'value', '1'), createObject('name', 'WEBSITE_VNET_ROUTE_ALL', 'value', '1'), createObject('name', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'value', 'true')), variables('packageAppSettings'), if(equals(reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.providerTag.value, 'mistral'), createArray(createObject('name', 'AZURE_MISTRAL_AUTH_MODE', 'value', 'rbac'), createObject('name', 'AZURE_MISTRAL_ENDPOINT', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.endpoint.value), createObject('name', 'AZURE_MISTRAL_DEPLOYMENT', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value), createObject('name', 'AZURE_MISTRAL_DEPLOYMENT_REASONING', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value), createObject('name', 'AZURE_MISTRAL_DEPLOYMENT_FAST', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.fastDeploymentName.value)), createArray(createObject('name', 'AZURE_OPENAI_AUTH_MODE', 'value', 'rbac'), createObject('name', 'AZURE_OPENAI_ENDPOINT', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.endpoint.value), createObject('name', 'AZURE_OPENAI_DEPLOYMENT', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value), createObject('name', 'AZURE_OPENAI_DEPLOYMENT_REASONING', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value), createObject('name', 'AZURE_OPENAI_DEPLOYMENT_FAST', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.fastDeploymentName.value), createObject('name', 'AZURE_OPENAI_REASONING_EFFORT_REASONING', 'value', parameters('reasoningEffort')))), createArray(createObject('name', 'DEFAULT_SYSTEM', 'value', parameters('defaultSystem')), createObject('name', 'ICD10GM_VALUESET_URL', 'value', parameters('icd10gmValueSetUrl')), createObject('name', 'WHO_ICD_RELEASE', 'value', parameters('whoIcdRelease')), createObject('name', 'WHO_ICD_LANGUAGE', 'value', parameters('whoIcdLanguage')), createObject('name', 'WHO_ICD_CLIENT_ID', 'value', if(empty(parameters('whoIcdClientIdSecretUri')), parameters('whoIcdClientId'), format('@Microsoft.KeyVault(SecretUri={0})', parameters('whoIcdClientIdSecretUri')))), createObject('name', 'WHO_ICD_CLIENT_SECRET', 'value', if(empty(parameters('whoIcdClientSecretSecretUri')), parameters('whoIcdClientSecret'), format('@Microsoft.KeyVault(SecretUri={0})', parameters('whoIcdClientSecretSecretUri')))), createObject('name', 'AZURE_VISION_ENDPOINT', 'value', reference(resourceId('Microsoft.CognitiveServices/accounts', format('cv-icd-{0}', parameters('nameSuffix'))), '2024-10-01').endpoint)))]"
+                  "appSettings": "[union(createArray(createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', 'node'), createObject('name', 'WEBSITE_NODE_DEFAULT_VERSION', 'value', parameters('nodeVersion')), createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', reference(resourceId('Microsoft.Insights/components', format('ai-icd-{0}-insights', parameters('nameSuffix'))), '2020-02-02').ConnectionString), createObject('name', 'AzureWebJobsStorage__accountName', 'value', format('sticd{0}', parameters('nameSuffix'))), createObject('name', 'WEBSITE_CONTENTOVERVNET', 'value', '1'), createObject('name', 'WEBSITE_VNET_ROUTE_ALL', 'value', '1'), createObject('name', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'value', 'true')), variables('packageAppSettings'), if(equals(reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.providerTag.value, 'mistral'), createArray(createObject('name', 'AZURE_MISTRAL_AUTH_MODE', 'value', 'rbac'), createObject('name', 'AZURE_MISTRAL_ENDPOINT', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.endpoint.value), createObject('name', 'AZURE_MISTRAL_DEPLOYMENT', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value), createObject('name', 'AZURE_MISTRAL_DEPLOYMENT_REASONING', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value), createObject('name', 'AZURE_MISTRAL_DEPLOYMENT_FAST', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.fastDeploymentName.value)), createArray(createObject('name', 'AZURE_OPENAI_AUTH_MODE', 'value', 'rbac'), createObject('name', 'AZURE_OPENAI_ENDPOINT', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.endpoint.value), createObject('name', 'AZURE_OPENAI_DEPLOYMENT', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value), createObject('name', 'AZURE_OPENAI_DEPLOYMENT_REASONING', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.reasoningDeploymentName.value), createObject('name', 'AZURE_OPENAI_DEPLOYMENT_FAST', 'value', reference(resourceId('Microsoft.Resources/deployments', format('llm-{0}', parameters('nameSuffix'))), '2025-04-01').outputs.fastDeploymentName.value), createObject('name', 'AZURE_OPENAI_REASONING_EFFORT_REASONING', 'value', parameters('reasoningEffort')))), createArray(createObject('name', 'DEFAULT_SYSTEM', 'value', parameters('defaultSystem')), createObject('name', 'ICD10GM_CODESYSTEM_URL', 'value', parameters('icd10gmValueSetUrl')), createObject('name', 'WHO_ICD_RELEASE', 'value', parameters('whoIcdRelease')), createObject('name', 'WHO_ICD_LANGUAGE', 'value', parameters('whoIcdLanguage')), createObject('name', 'WHO_ICD_CLIENT_ID', 'value', if(empty(parameters('whoIcdClientIdSecretUri')), parameters('whoIcdClientId'), format('@Microsoft.KeyVault(SecretUri={0})', parameters('whoIcdClientIdSecretUri')))), createObject('name', 'WHO_ICD_CLIENT_SECRET', 'value', if(empty(parameters('whoIcdClientSecretSecretUri')), parameters('whoIcdClientSecret'), format('@Microsoft.KeyVault(SecretUri={0})', parameters('whoIcdClientSecretSecretUri')))), createObject('name', 'AZURE_VISION_ENDPOINT', 'value', reference(resourceId('Microsoft.CognitiveServices/accounts', format('cv-icd-{0}', parameters('nameSuffix'))), '2024-10-01').endpoint)))]"
                 }
               },
               "dependsOn": [
@@ -695,8 +695,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.43.8.12551",
-                      "templateHash": "13421398333779724758"
+                      "version": "0.47.16.16243",
+                      "templateHash": "5744135870848529572"
                     }
                   },
                   "parameters": {
@@ -984,8 +984,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "8244699539396504890"
+              "version": "0.47.16.16243",
+              "templateHash": "2171749003530771955"
             }
           },
           "parameters": {

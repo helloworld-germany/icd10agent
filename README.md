@@ -321,7 +321,7 @@ Vom 1-Click-Wizard bzw. `deploy.ps1` automatisch gesetzt. Im manuellen Setup fol
 | Key | Pflicht | Beschreibung |
 |---|---|---|
 | `DEFAULT_SYSTEM` | – | `icd10gm` (Default) oder `icd11` |
-| `ICD10GM_VALUESET_URL` | – | Override für die BfArM ValueSet-URL |
+| `ICD10GM_CODESYSTEM_URL` | – | Override für die BfArM CodeSystem-URL |
 | `WHO_ICD_CLIENT_ID` | für ICD-11 | OAuth Client ID (WHO ICD-API) |
 | `WHO_ICD_CLIENT_SECRET` | für ICD-11 | OAuth Secret |
 | `WHO_ICD_RELEASE` | – | z.B. `2026-01` |

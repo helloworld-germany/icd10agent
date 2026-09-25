@@ -52,3 +52,4 @@ scripts/debug-classify.ps1
 scripts/test-apim.ps1
 scripts/test-classify.ps1
 build/
+local.settings.json.*

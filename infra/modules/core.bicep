@@ -22,7 +22,7 @@ param whoIcdClientSecret string = ''
 
 param whoIcdRelease string = '2026-01'
 param whoIcdLanguage string = 'de'
-param icd10gmValueSetUrl string = 'https://terminologien.bfarm.de/rendering_data/ValueSet-icd10gm-terminale-codes-2026.json'
+param icd10gmValueSetUrl string = 'https://terminologien.bfarm.de/rendering_data/CodeSystem-icd10gm-2026.json'
 
 @allowed(['icd10gm', 'icd11'])
 param defaultSystem string = 'icd10gm'
@@ -237,7 +237,7 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
       minTlsVersion: '1.2'
       appSettings: union(baseAppSettings, packageAppSettings, llmSettings, [
         { name: 'DEFAULT_SYSTEM', value: defaultSystem }
-        { name: 'ICD10GM_VALUESET_URL', value: icd10gmValueSetUrl }
+        { name: 'ICD10GM_CODESYSTEM_URL', value: icd10gmValueSetUrl }
         { name: 'WHO_ICD_RELEASE', value: whoIcdRelease }
         { name: 'WHO_ICD_LANGUAGE', value: whoIcdLanguage }
         { name: 'WHO_ICD_CLIENT_ID', value: empty(whoIcdClientIdSecretUri) ? whoIcdClientId : '@Microsoft.KeyVault(SecretUri=${whoIcdClientIdSecretUri})' }
